@@ -206,6 +206,12 @@ class TestHandleBuiltIn(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertIn("commands", result.lower())
 
+    def test_status_command(self):
+        result = self.app._handle_built_in(self.ai, "status")
+        self.assertIsNotNone(result)
+        self.assertIn("SYSTEM STATUS", result)
+        self.assertIn("OPERATIONAL", result)
+
     def test_switch_mode_command(self):
         result = self.app._handle_built_in(self.ai, "switch mode strategy")
         self.assertIsNotNone(result)
@@ -222,6 +228,93 @@ class TestHandleBuiltIn(unittest.TestCase):
     def test_quit_calls_sys_exit(self):
         with self.assertRaises(SystemExit):
             self.app._handle_built_in(self.ai, "quit")
+
+
+class TestStatusCommand(unittest.TestCase):
+    """Tests for the `status` built-in command."""
+
+    def _make_ai(self, connected: bool = False):
+        import app
+        importlib.reload(app)
+        ai = app.OmarAI()
+        ai._client = MagicMock() if connected else None
+        return ai
+
+    def test_status_summary_contains_header(self):
+        import app
+        importlib.reload(app)
+        ai = self._make_ai()
+        result = ai.status_summary()
+        self.assertIn("OMAR AI — SYSTEM STATUS", result)
+
+    def test_status_summary_shows_mode(self):
+        import app
+        importlib.reload(app)
+        ai = self._make_ai()
+        result = ai.status_summary()
+        self.assertIn("OPERATIONS MODE", result)
+
+    def test_status_summary_lists_all_components(self):
+        import config
+        import app
+        importlib.reload(app)
+        ai = self._make_ai()
+        result = ai.status_summary()
+        for component in config.ECOSYSTEM_COMPONENTS:
+            self.assertIn(component, result)
+
+    def test_status_summary_shows_operational(self):
+        import app
+        importlib.reload(app)
+        ai = self._make_ai()
+        result = ai.status_summary()
+        self.assertIn("ALL SYSTEMS OPERATIONAL", result)
+
+    def test_status_summary_shows_offline_when_no_client(self):
+        import app
+        importlib.reload(app)
+        ai = self._make_ai(connected=False)
+        result = ai.status_summary()
+        self.assertIn("OFFLINE", result)
+
+    def test_status_summary_shows_connected_when_client_set(self):
+        import app
+        importlib.reload(app)
+        ai = self._make_ai(connected=True)
+        result = ai.status_summary()
+        self.assertIn("CONNECTED", result)
+
+    def test_status_reflects_switched_mode(self):
+        import app
+        importlib.reload(app)
+        ai = self._make_ai()
+        ai.switch_mode("strategy")
+        result = ai.status_summary()
+        self.assertIn("STRATEGY MODE", result)
+
+    def test_status_built_in_handled(self):
+        import app
+        importlib.reload(app)
+        ai = self._make_ai()
+        result = app._handle_built_in(ai, "status")
+        self.assertIsNotNone(result)
+        self.assertIn("SYSTEM STATUS", result)
+
+    def test_status_case_insensitive(self):
+        import app
+        importlib.reload(app)
+        ai = self._make_ai()
+        result = app._handle_built_in(ai, "STATUS")
+        self.assertIsNotNone(result)
+        self.assertIn("SYSTEM STATUS", result)
+
+    def test_help_text_documents_status(self):
+        import config
+        self.assertIn("status", config.HELP_TEXT)
+
+    def test_system_prompt_documents_status(self):
+        content = (ROOT / "system_prompt.md").read_text(encoding="utf-8")
+        self.assertIn("`status`", content)
 
 
 if __name__ == "__main__":

@@ -194,6 +194,7 @@ Recognized commands:
 
 | Command | Description |
 |---|---|
+| `status` | Quick combined system status dashboard |
 | `show ecosystem status` | Overview of all ecosystem components |
 | `show infrastructure health` | Node and server health summary |
 | `show network performance` | Latency, throughput, uptime metrics |
