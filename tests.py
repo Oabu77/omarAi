@@ -76,11 +76,10 @@ class TestOmarAIOfflineMode(unittest.TestCase):
     """Test OmarAI behaviour when no API key is set (offline mode)."""
 
     def _make_ai(self):
-        # Reload app without openai present to ensure offline path is taken
+        # Reload app module and force offline mode by clearing the client.
         import app
         importlib.reload(app)
         ai = app.OmarAI()
-        # Force offline by removing client
         ai._client = None
         return ai
 
@@ -171,9 +170,9 @@ class TestOmarAIOnlineMode(unittest.TestCase):
         import config
         ai, mock_client = self._make_ai_with_mock_client("Strategic response.")
         ai.chat("What is our expansion strategy?")
-        call_kwargs = mock_client.chat.completions.create.call_args
-        self.assertEqual(call_kwargs.kwargs.get("model") or call_kwargs[1].get("model"),
-                         config.MODEL)
+        call_args, call_kwargs = mock_client.chat.completions.create.call_args
+        model_used = call_kwargs.get("model") if call_kwargs else (call_args[0] if call_args else None)
+        self.assertEqual(model_used, config.MODEL)
 
     def test_api_response_returned_and_stored(self):
         ai, _ = self._make_ai_with_mock_client("Expansion recommendation text.")
