@@ -316,6 +316,195 @@ class TestStatusCommand(unittest.TestCase):
         content = (ROOT / "system_prompt.md").read_text(encoding="utf-8")
         self.assertIn("`status`", content)
 
+    def test_status_shows_live_metrics_section(self):
+        """When psutil is available the output must include the live metrics header."""
+        import app
+        importlib.reload(app)
+        ai = self._make_ai()
+        result = ai.status_summary()
+        self.assertIn("INFRASTRUCTURE METRICS (Live)", result)
+
+    def test_status_shows_snapshot_timestamp(self):
+        """A UTC timestamp line must appear in the output."""
+        import app
+        importlib.reload(app)
+        ai = self._make_ai()
+        result = ai.status_summary()
+        self.assertIn("UTC", result)
+
+
+class TestLiveData(unittest.TestCase):
+    """Unit tests for the live_data module."""
+
+    def _fake_metrics(self) -> dict:
+        """Build the psutil fake objects used across several tests."""
+        return {
+            "cpu_percent": 23.5,
+            "cpu_count": 4,
+            "virtual_memory": types.SimpleNamespace(
+                percent=55.0, used=4 * 1024 ** 3, total=8 * 1024 ** 3
+            ),
+            "disk_usage": types.SimpleNamespace(
+                percent=42.0, used=100 * 1024 ** 3, total=500 * 1024 ** 3
+            ),
+            "boot_time": 0.0,  # will be mocked
+            "net_io_counters": types.SimpleNamespace(
+                bytes_sent=1_000_000, bytes_recv=5_000_000
+            ),
+            "pids": [1, 2, 3, 4, 5],
+        }
+
+    def _patch_psutil(self, fake: dict, uptime_seconds: float = 90061.0):
+        """Return a context manager that patches all psutil calls in live_data."""
+        import live_data as ld
+        # boot_time returns epoch seconds such that time.time()-boot_time = uptime_seconds
+        fixed_now = 1_000_000.0
+        boot_ts = fixed_now - uptime_seconds
+
+        patches = [
+            patch.object(ld, "_psutil", create=True),
+            patch("time.time", return_value=fixed_now),
+        ]
+        return patches, boot_ts, fake
+
+    @patch("time.time")
+    def test_collect_keys_always_present(self, mock_time):
+        import live_data as ld
+        mock_time.return_value = 1_000_000.0
+        with patch.object(ld, "_PSUTIL_AVAILABLE", False):
+            result = ld.collect()
+        expected_keys = {
+            "timestamp", "psutil_available",
+            "uptime_str", "cpu_percent", "cpu_count",
+            "memory_percent", "memory_used_gb", "memory_total_gb",
+            "disk_percent", "disk_used_gb", "disk_total_gb",
+            "net_bytes_sent", "net_bytes_recv", "process_count",
+        }
+        self.assertEqual(expected_keys, set(result.keys()))
+
+    @patch("time.time")
+    def test_collect_without_psutil_returns_none_values(self, mock_time):
+        import live_data as ld
+        mock_time.return_value = 1_000_000.0
+        with patch.object(ld, "_PSUTIL_AVAILABLE", False):
+            result = ld.collect()
+        self.assertFalse(result["psutil_available"])
+        for key in ("cpu_percent", "memory_percent", "disk_percent",
+                    "uptime_str", "net_bytes_sent", "net_bytes_recv",
+                    "process_count"):
+            self.assertIsNone(result[key], f"{key} should be None without psutil")
+
+    @patch("time.time")
+    def test_collect_with_psutil_populates_metrics(self, mock_time):
+        import live_data as ld
+        fixed_now = 1_000_000.0
+        mock_time.return_value = fixed_now
+        fake = self._fake_metrics()
+
+        mock_ps = MagicMock()
+        mock_ps.cpu_percent.return_value = fake["cpu_percent"]
+        mock_ps.cpu_count.return_value = fake["cpu_count"]
+        mock_ps.virtual_memory.return_value = fake["virtual_memory"]
+        mock_ps.disk_usage.return_value = fake["disk_usage"]
+        mock_ps.boot_time.return_value = fixed_now - 90061.0
+        mock_ps.net_io_counters.return_value = fake["net_io_counters"]
+        mock_ps.pids.return_value = fake["pids"]
+
+        with patch.object(ld, "_psutil", mock_ps), \
+             patch.object(ld, "_PSUTIL_AVAILABLE", True):
+            result = ld.collect()
+
+        self.assertTrue(result["psutil_available"])
+        self.assertAlmostEqual(result["cpu_percent"], 23.5)
+        self.assertEqual(result["cpu_count"], 4)
+        self.assertAlmostEqual(result["memory_percent"], 55.0)
+        self.assertAlmostEqual(result["memory_total_gb"], 8.0)
+        self.assertAlmostEqual(result["disk_percent"], 42.0)
+        self.assertAlmostEqual(result["disk_total_gb"], 500.0)
+        self.assertEqual(result["net_bytes_sent"], 1_000_000)
+        self.assertEqual(result["net_bytes_recv"], 5_000_000)
+        self.assertEqual(result["process_count"], 5)
+
+    @patch("time.time")
+    def test_collect_uptime_format_days(self, mock_time):
+        import live_data as ld
+        fixed_now = 1_000_000.0
+        mock_time.return_value = fixed_now
+
+        mock_ps = MagicMock()
+        mock_ps.cpu_percent.return_value = 0.0
+        mock_ps.cpu_count.return_value = 1
+        mock_ps.virtual_memory.return_value = types.SimpleNamespace(
+            percent=0.0, used=0, total=1
+        )
+        mock_ps.disk_usage.return_value = types.SimpleNamespace(
+            percent=0.0, used=0, total=1
+        )
+        mock_ps.boot_time.return_value = fixed_now - (2 * 86400 + 3 * 3600 + 15 * 60)
+        mock_ps.net_io_counters.return_value = types.SimpleNamespace(
+            bytes_sent=0, bytes_recv=0
+        )
+        mock_ps.pids.return_value = []
+
+        with patch.object(ld, "_psutil", mock_ps), \
+             patch.object(ld, "_PSUTIL_AVAILABLE", True):
+            result = ld.collect()
+        self.assertEqual(result["uptime_str"], "2d 3h 15m")
+
+    def test_fmt_uptime_hours_only(self):
+        import live_data as ld
+        self.assertEqual(ld._fmt_uptime(3661), "1h 1m")
+
+    def test_fmt_uptime_with_days(self):
+        import live_data as ld
+        self.assertEqual(ld._fmt_uptime(86400 + 3600 + 60), "1d 1h 1m")
+
+    def test_fmt_bytes_kb(self):
+        import live_data as ld
+        self.assertEqual(ld.fmt_bytes(512), "512.0 B")
+        self.assertEqual(ld.fmt_bytes(2048), "2.0 KB")
+
+    def test_fmt_bytes_mb(self):
+        import live_data as ld
+        self.assertEqual(ld.fmt_bytes(5 * 1024 * 1024), "5.0 MB")
+
+    def test_fmt_bytes_gb(self):
+        import live_data as ld
+        self.assertEqual(ld.fmt_bytes(3 * 1024 ** 3), "3.0 GB")
+
+    @patch("time.time")
+    def test_status_summary_includes_live_cpu(self, mock_time):
+        """status_summary() must embed actual CPU% from live_data."""
+        import app
+        import live_data as ld
+        importlib.reload(app)
+        fixed_now = 1_000_000.0
+        mock_time.return_value = fixed_now
+
+        mock_ps = MagicMock()
+        mock_ps.cpu_percent.return_value = 77.7
+        mock_ps.cpu_count.return_value = 8
+        mock_ps.virtual_memory.return_value = types.SimpleNamespace(
+            percent=50.0, used=4 * 1024 ** 3, total=8 * 1024 ** 3
+        )
+        mock_ps.disk_usage.return_value = types.SimpleNamespace(
+            percent=30.0, used=60 * 1024 ** 3, total=200 * 1024 ** 3
+        )
+        mock_ps.boot_time.return_value = fixed_now - 3600
+        mock_ps.net_io_counters.return_value = types.SimpleNamespace(
+            bytes_sent=0, bytes_recv=0
+        )
+        mock_ps.pids.return_value = list(range(100))
+
+        with patch.object(ld, "_psutil", mock_ps), \
+             patch.object(ld, "_PSUTIL_AVAILABLE", True):
+            ai = app.OmarAI()
+            ai._client = None
+            result = ai.status_summary()
+
+        self.assertIn("77.7", result)
+        self.assertIn("8 cores", result)
+
 
 if __name__ == "__main__":
     unittest.main()

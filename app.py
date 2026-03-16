@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover
     openai = None  # type: ignore[assignment]
 
 import config
+import live_data
 
 # ---------------------------------------------------------------------------
 # Load system prompt from markdown file
@@ -88,10 +89,13 @@ class OmarAI:
         self._history.clear()
 
     def status_summary(self) -> str:
-        """Return a concise combined status dashboard."""
+        """Return a concise combined status dashboard with real live host metrics."""
+        metrics = live_data.collect()
+
         lines = [
             "OMAR AI — SYSTEM STATUS",
             "=" * 50,
+            f"  Snapshot       : {metrics['timestamp']}",
             f"  Operating Mode : {self._mode.upper()} MODE",
             f"  AI Backend     : {'CONNECTED' if self._client is not None else 'OFFLINE (no API key)'}",
             "",
@@ -100,21 +104,23 @@ class OmarAI:
         ]
         for component in config.ECOSYSTEM_COMPONENTS:
             lines.append(f"  • {component}: OPERATIONAL")
+
+        lines += ["", "INFRASTRUCTURE METRICS (Live)", "-" * 50]
+
+        if metrics["psutil_available"]:
+            lines += [
+                f"  System Uptime      : {metrics['uptime_str']}",
+                f"  CPU Usage          : {metrics['cpu_percent']:.1f} %  ({metrics['cpu_count']} cores)",
+                f"  Memory Usage       : {metrics['memory_percent']:.1f} %  ({metrics['memory_used_gb']:.1f} / {metrics['memory_total_gb']:.1f} GB)",
+                f"  Disk Usage         : {metrics['disk_percent']:.1f} %  ({metrics['disk_used_gb']:.1f} / {metrics['disk_total_gb']:.1f} GB)",
+                f"  Net Bytes Sent     : {live_data.fmt_bytes(metrics['net_bytes_sent'])}",
+                f"  Net Bytes Received : {live_data.fmt_bytes(metrics['net_bytes_recv'])}",
+                f"  Active Processes   : {metrics['process_count']}",
+            ]
+        else:
+            lines.append("  (install psutil for live metrics: pip install psutil)")
+
         lines += [
-            "",
-            "INFRASTRUCTURE METRICS",
-            "-" * 50,
-            "  Node Uptime        : 99.9 %",
-            "  Avg Latency        : 12 ms",
-            "  Transaction TPS    : 4,200",
-            "  Mesh Nodes Active  : 1,140",
-            "  Encrypted Sessions : 8,712",
-            "",
-            "SERVICE ACTIVITY",
-            "-" * 50,
-            "  Active Members     : 14,300",
-            "  Merchant Accounts  : 560",
-            "  Halal Card Holders : 9,100",
             "",
             "Overall Status: ALL SYSTEMS OPERATIONAL",
         ]
@@ -150,6 +156,21 @@ class OmarAI:
             return "\n".join(lines)
 
         if "infrastructure health" in cmd:
+            m = live_data.collect()
+            if m["psutil_available"]:
+                return "\n".join([
+                    "INFRASTRUCTURE HEALTH SUMMARY",
+                    "=" * 30,
+                    f"  System Uptime    : {m['uptime_str']}",
+                    f"  CPU Usage        : {m['cpu_percent']:.1f} %  ({m['cpu_count']} cores)",
+                    f"  Memory Usage     : {m['memory_percent']:.1f} %  ({m['memory_used_gb']:.1f} / {m['memory_total_gb']:.1f} GB)",
+                    f"  Disk Usage       : {m['disk_percent']:.1f} %  ({m['disk_used_gb']:.1f} / {m['disk_total_gb']:.1f} GB)",
+                    f"  Net Bytes Sent   : {live_data.fmt_bytes(m['net_bytes_sent'])}",
+                    f"  Net Bytes Recv   : {live_data.fmt_bytes(m['net_bytes_recv'])}",
+                    f"  Active Processes : {m['process_count']}",
+                    "",
+                    f"Status: HEALTHY — Data collected {m['timestamp']}",
+                ])
             return textwrap.dedent("""\
                 INFRASTRUCTURE HEALTH SUMMARY
                 ==============================
