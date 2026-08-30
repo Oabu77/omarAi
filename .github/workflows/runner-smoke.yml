@@ -1,0 +1,16 @@
+name: Runner Smoke Test
+
+on:
+  push:
+    paths:
+      - .github/workflows/runner-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify runner
+        run: echo "runner-ready"
