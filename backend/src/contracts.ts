@@ -4,6 +4,7 @@ import type {
   TaskPlan,
   TaskPlanStep,
 } from "./types";
+import { ApiError } from "./http";
 
 export const ALLOWED_AGENTS = new Set([
   "Omar Core Agent",
@@ -94,7 +95,9 @@ export function requireString(
   field: string,
   max = 500,
 ): string {
-  if (!isShortString(value, max)) throw new Error(`${field} is required and must be at most ${max} characters.`);
+  if (!isShortString(value, max)) {
+    throw new ApiError(400, "INVALID_FIELD", `${field} is required and must be at most ${max} characters.`);
+  }
   return value.trim();
 }
 
@@ -104,13 +107,15 @@ export function optionalString(
   max = 500,
 ): string | null {
   if (value === undefined || value === null || value === "") return null;
-  if (!isShortString(value, max)) throw new Error(`${field} must be at most ${max} characters.`);
+  if (!isShortString(value, max)) {
+    throw new ApiError(400, "INVALID_FIELD", `${field} must be at most ${max} characters.`);
+  }
   return value.trim();
 }
 
 export function requireNonNegativeInteger(value: unknown, field: string): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0) {
-    throw new Error(`${field} must be a non-negative integer.`);
+    throw new ApiError(400, "INVALID_FIELD", `${field} must be a non-negative integer.`);
   }
   return value as number;
 }
@@ -120,26 +125,26 @@ export function calculateDocumentTotals(
   taxRateBasisPoints: unknown,
 ): CalculatedDocumentTotal {
   if (!Array.isArray(rawItems) || rawItems.length < 1 || rawItems.length > 100) {
-    throw new Error("items must contain between one and 100 line items.");
+    throw new ApiError(400, "INVALID_FIELD", "items must contain between one and 100 line items.");
   }
   const basisPoints = requireNonNegativeInteger(taxRateBasisPoints ?? 0, "taxRateBasisPoints");
-  if (basisPoints > 100_000) throw new Error("taxRateBasisPoints is outside the accepted range.");
+  if (basisPoints > 100_000) throw new ApiError(400, "INVALID_FIELD", "taxRateBasisPoints is outside the accepted range.");
 
   const items = rawItems.map((raw): LineItemInput & { lineTotalCents: number } => {
-    if (!recordValue(raw)) throw new Error("Each line item must be an object.");
+    if (!recordValue(raw)) throw new ApiError(400, "INVALID_FIELD", "Each line item must be an object.");
     const description = requireString(raw.description, "item.description", 500);
     const quantityMillis = requireNonNegativeInteger(raw.quantityMillis, "item.quantityMillis");
     const unitPriceCents = requireNonNegativeInteger(raw.unitPriceCents, "item.unitPriceCents");
-    if (quantityMillis === 0) throw new Error("item.quantityMillis must be greater than zero.");
+    if (quantityMillis === 0) throw new ApiError(400, "INVALID_FIELD", "item.quantityMillis must be greater than zero.");
     const lineTotalCents = Math.round((quantityMillis * unitPriceCents) / 1_000);
-    if (!Number.isSafeInteger(lineTotalCents)) throw new Error("Line item amount is too large.");
+    if (!Number.isSafeInteger(lineTotalCents)) throw new ApiError(400, "INVALID_FIELD", "Line item amount is too large.");
     return { description, quantityMillis, unitPriceCents, lineTotalCents };
   });
   const subtotalCents = items.reduce((sum, item) => sum + item.lineTotalCents, 0);
   const taxCents = Math.round((subtotalCents * basisPoints) / 10_000);
   const totalCents = subtotalCents + taxCents;
   if (![subtotalCents, taxCents, totalCents].every(Number.isSafeInteger)) {
-    throw new Error("Document amount is too large.");
+    throw new ApiError(400, "INVALID_FIELD", "Document amount is too large.");
   }
   return { items, subtotalCents, taxCents, totalCents };
 }

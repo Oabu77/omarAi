@@ -6,15 +6,24 @@ Artifact profile: disconnected local-first Android v0.1.0. Do not import this Ma
 
 **Does the app collect or share any required user data types?**
 
-Candidate: **No**, only if all of the following are documented:
+Source-level candidate: **No**. This is not the final Console answer; use it only if all of the following are documented for the signed artifact:
 
 - `OMAR_API_CONFIGURED=false` in the signed build;
 - runtime capture shows no DarCloud, AI, upload, analytics, crash, push, ad, auth, or other user-data endpoint;
 - all CRM/request/task/report/photo/document information remains on device;
-- the Android speech-recognizer invocation is determined not to be collection/sharing by Omar AI under the current Play definition, or the relevant audio type is instead declared accurately; and
-- Google Play Billing product queries introduce no app-declared data type outside an applicable Play/payment-service treatment.
+- the device speech provider—not Omar AI—captures audio, Omar AI receives only the transcript, and that transcript remains local; and
+- the signed dependency graph and merged manifest confirm that the Play Billing SDK and its billing-diagnostic/transitive components are absent; no product or existing-purchase query, purchase, restore, reachable purchase-token receipt/transmission, or Billing SDK telemetry occurs. Dormant future API contract names may remain but must have no call site.
 
 If any condition fails, answer **Yes** and disclose the exact observed types. Do not use a broad connected-backend template for a disconnected artifact, and do not use this No answer after configuring the backend.
+
+## Source-level rationale
+
+- Google defines collection as user data transmitted off device from the app or its libraries/SDKs; data processed only on device is outside collection.
+- The current `ACTION_RECOGNIZE_SPEECH` flow hands control to the device speech provider, which captures speech under its own terms. Omar AI receives no raw audio and stores only the returned transcript locally. This supports No for Omar AI Voice or sound recordings, pending signed-device confirmation.
+- The current source does not bundle or initialize Play Billing and therefore cannot access product, existing-purchase, or purchase-token data. Purchase and restore are unavailable, Pro/Business are inactive, and no Billing SDK diagnostic/device telemetry should occur. This supports No for Purchase history/payment info and Billing-related diagnostics/device identifiers without relying on the payment-service exception, pending signed dependency, manifest, and runtime confirmation.
+- Any runtime endpoint, SDK behavior, provider behavior, or future configuration that contradicts these facts invalidates the candidate No answer.
+
+Primary source: [Google Play Data safety guidance](https://support.google.com/googleplay/android-developer/answer/10787469?hl=en), including its collection/on-device definitions, user-initiated sharing treatment, and payment-service guidance.
 
 ## Local-only data not selected as collected
 
@@ -41,15 +50,17 @@ The app does provide local JSON export and local database deletion, and Android 
 ## Required pre-submit evidence
 
 ```text
-Signed AAB / SHA-256: [[CONFIRM_RELEASE_AAB_SHA256]]
+Signed AAB: ../../android/app/build/outputs/bundle/release/app-release.aab (6,921,439 bytes)
+SHA-256: 5932622c111d33b93afaa27c38c0c7e44ba871e88f8b1d6c5335f3a71a2edc97
+Bundle/signature checks: bundletool validate PASS; OpenSSL CMS signature verification PASS
 Merged manifest / dependency graph: [[CONFIRM_MANIFEST_DEPENDENCY_REPORT]]
 Runtime network report: [[CONFIRM_RUNTIME_NETWORK_REPORT]]
 Speech recognizer Data safety rationale: [[CONFIRM_SPEECH_RECOGNIZER_RATIONALE]]
-Play Billing SDK/data rationale: [[CONFIRM_PLAY_BILLING_DATA_RATIONALE]]
+Play Billing SDK absence / dependency-data rationale: [[CONFIRM_PLAY_BILLING_DATA_RATIONALE]]
 Local delete/camera-cache/legacy-URI-grant test: [[CONFIRM_LOCAL_DELETION_TEST]]
 Privacy policy reconciliation approval: [[CONFIRM_PRIVACY_RECONCILIATION]]
 ```
 
 ## Stop condition for a connected release
 
-If the release sets a real `OMAR_API_BASE_URL`, adds sign-in, permits a Google Play purchase, submits an AI-output report remotely, uploads an attachment, or enables an AI response, stop. Answer Yes and rebuild the inventory from actual production flows, including personal info, messages/user content, purchase history, task/audit/business data, providers, purposes, optionality, retention, security, sharing exceptions, and working deletion.
+If the release sets a real `OMAR_API_BASE_URL`, adds sign-in, bundles or initializes Play Billing, permits a product/purchase/restore query or Google Play purchase, submits an AI-output report remotely, uploads an attachment, or enables an AI response, stop. Rebuild the inventory from actual production flows—including personal info, messages/user content, purchase history, task/audit/business data, SDK diagnostics/device data, providers, purposes, optionality, retention, security, sharing exceptions, and working deletion—and answer the current Console form from the new signed artifact.

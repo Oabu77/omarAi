@@ -1,6 +1,6 @@
 # Main store listing — English (United States)
 
-Status: **candidate copy for the disconnected v1 foundation, not submitted**. It describes package `com.darcloud.omarai`, version `0.1.0` (`versionCode 1`) as currently implemented. Use only after a signed AAB build and device tests pass.
+Status: **candidate copy for the disconnected v1 foundation, not submitted**. It describes package `com.darcloud.omarai`, version `0.1.0` (`versionCode 1`) as currently implemented. The signed AAB exists and has passed bundle/signature checks; use this copy only after the remaining device, policy, and Console gates pass.
 
 ## App details
 
@@ -23,7 +23,7 @@ Omar AI v1 is a local-first workspace for adults who want to plan requests and o
 
 PLAN REQUESTS HONESTLY
 
-Type a request or dictate text using Android’s speech-recognition service. Omar AI routes the request to a clearly labeled capability and records its task state. The online Omar AI service is not connected in this build, so the app marks the request as planned and does not claim that AI analysis or an external action occurred.
+Type a request or dictate text using Android’s speech-recognition service. For supported local planning categories, Omar AI routes the request to a clearly labeled capability and records its task state. An unavailable category returns a clear Coming later message without creating a task or claiming action. The online Omar AI service is not connected in this build, so supported requests are marked as planned and the app does not claim that AI analysis or an external action occurred.
 
 ADD CONTEXT TO A DRAFT
 
@@ -43,7 +43,7 @@ Export supported local records to a JSON file you choose, or delete local databa
 
 CURRENT RELEASE LIMITS
 
-This build has no Omar AI account or sign-in, no connected AI-answer service, and no live phone calls, linked financial accounts, user messaging, marketplace booking, customer payments, or company filings. Pro and Business purchase controls remain unavailable until a production backend can verify Google Play purchases.
+This build has no Omar AI account or sign-in, no connected AI-answer service, and no live phone calls, linked financial accounts, user messaging, marketplace booking, customer payments, or company filings. Pro and Business are inactive. Play Billing is not included, so product queries, purchases, purchase restoration, and paid entitlement are unavailable.
 
 Omar AI is intended for adults age 18 and older. Review important records and task details before relying on them.
 ```
@@ -58,24 +58,24 @@ Omar AI is intended for adults age 18 and older. Review important records and ta
 | Tags | Business management/productivity equivalents, if offered | Select only exact current tags; do not imply connected AI |
 | Contains ads | No | Signed AAB manifest/dependency/runtime audit confirms no ad SDK, sponsored placement, or Advertising ID use |
 | Contact email | `[[CONFIRM_SUPPORT_EMAIL]]` | Required, monitored, and authorized for public display |
-| Website | `[[CONFIRM_PUBLIC_SUPPORT_URL]]` | Live HTTPS support page |
+| Website | `https://omar-ai-support.omarabunadi28.chatgpt.site/support` | HTTP 200 verified August 30, 2026; content/control approval still required |
 | Phone | `[[CONFIRM_SUPPORT_PHONE_OR_OMIT]]` | Optional; do not invent or expose a personal number |
-| Privacy policy | `[[CONFIRM_PUBLIC_PRIVACY_URL]]` | Current local-only policy is live and placeholder-free |
+| Privacy policy | `https://omar-ai-support.omarabunadi28.chatgpt.site/privacy` | HTTP 200 verified August 30, 2026; content/control approval still required |
 
 ## Claim-evidence gate
 
 | Listing claim | Required evidence before use |
 |---|---|
 | Local request routing | Unit test plus signed-device test proves deterministic route and truthful disconnected message |
-| Voice-to-text | Android speech recognizer launches contextually; denial/error path works; policy identifies the device speech service |
-| Camera/photo/file draft context | Only user-invoked controls work; raw bytes are not uploaded/analyzed while API is unconfigured; stored filename/MIME/source metadata is accurate; temporary camera files and grants are cleaned up |
+| Voice-to-text | Android speech recognizer launches contextually; unavailable/cancel/error paths work; policy identifies the device speech service |
+| Camera/photo/file draft context | Only user-invoked controls work; raw bytes are not uploaded/analyzed while API is unconfigured; in-memory filename/MIME/source metadata is accurate and is not persisted after draft submission; temporary camera files and grants are cleaned up |
 | Local CRM | Supported customer, lead, job, and invoice add/read paths plus lead-status updates persist correctly; full local deletion works without implying per-record edit/delete |
 | Local dashboard | Every metric reconciles to local records; no sample or hardcoded revenue is displayed |
 | Command Center | Planned/disconnected/canceled states and audit details match local repository state |
 | Export/delete | Exported JSON matches displayed local records; deletion clears all app-created local content and grants promised by the UI/policy |
 | No account/sign-in | No hidden or redirected registration/auth flow exists in the release artifact |
-| Paid plans unavailable | Purchase button is disabled without backend verification; no entitlement is granted locally |
+| Paid plans unavailable | Signed dependency/manifest audit confirms Play Billing is absent; product/purchase queries, purchase launch, restore, and entitlement activation remain unavailable |
 | No ads | Signed AAB and runtime traffic confirm no ad/AD_ID/sponsored content |
 | Adults 18+ | Onboarding, listing, policy, and distribution settings consistently target adults |
 
-Do not replace the disconnected paragraph with connected-AI copy until authentication, the production API, provider processing, Data safety answers, moderation, deletion, and billing verification all pass and a new listing review is completed.
+Do not replace the disconnected paragraph with connected-AI copy until authentication, the production API, provider processing, Data safety answers, moderation, deletion, and any future paid-plan implementation and verification all pass and a new listing review is completed.

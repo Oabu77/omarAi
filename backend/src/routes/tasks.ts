@@ -112,6 +112,19 @@ export function registerTaskRoutes(app: Hono<AppEnvironment>): void {
         if (!access) throw new ApiError(404, "BUSINESS_NOT_FOUND", "Business not found or access is not permitted.");
       }
 
+      const priorMessages = await db
+        .prepare(
+          `SELECT role, substr(content, 1, 2000) AS content
+             FROM assistant_messages
+            WHERE user_id = ? AND conversation_id = ? AND role IN ('user', 'assistant')
+            ORDER BY created_at DESC LIMIT 12`,
+        )
+        .bind(userId, input.conversationId)
+        .all<{ role: "user" | "assistant"; content: string }>();
+      const history = priorMessages.results
+        .filter((message) => (message.role === "user" || message.role === "assistant") && typeof message.content === "string")
+        .reverse();
+
       const taskId = crypto.randomUUID();
       const userMessageId = crypto.randomUUID();
       const now = new Date().toISOString();
@@ -134,7 +147,7 @@ export function registerTaskRoutes(app: Hono<AppEnvironment>): void {
       const provider = new CloudflareWorkersAiProvider(c.env);
       let planned;
       try {
-        planned = await provider.plan(input);
+        planned = await provider.plan({ ...input, history });
       } catch (error) {
         const providerError = error instanceof AiProviderError
           ? error

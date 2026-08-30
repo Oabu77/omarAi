@@ -22,8 +22,8 @@ MODEL_TEXT = "@cf/zai-org/glm-5.2"
 # MODEL_VISION and MODEL_TRANSCRIPTION remain unset until those adapters are implemented.
 RATE_LIMIT_PER_MINUTE = "120"
 ASSISTANT_RATE_LIMIT_PER_MINUTE = "20"
-# ANDROID_PACKAGE_NAME = "com.example.omarai"
-# PLAY_PRODUCT_ENTITLEMENTS = '{"omar_ai_pro_monthly":"pro","omar_ai_business_monthly":"business"}'
+# ANDROID_PACKAGE_NAME = "com.darcloud.omarai"
+# PLAY_PRODUCT_ENTITLEMENTS = '{"omar_ai_pro":"pro","omar_ai_business":"business"}'
 # Keep false until the trusted verifier proves RTDN and revocation reconciliation are operational.
 PLAY_LIFECYCLE_VERIFICATION_ENABLED = "false"
 

@@ -53,6 +53,7 @@ class OmarRepository(
     private val context: Context,
     private val database: OmarDatabase,
     private val apiClient: OmarApiClient,
+    private val preferences: UserPreferences,
 ) {
     private val dao = database.omarDao()
 
@@ -174,7 +175,7 @@ class OmarRepository(
             return
         }
 
-        if (!apiClient.isConfigured || !apiClient.hasAuthenticatedSession) {
+        if (!apiClient.isConfigured) {
             val taskId = UUID.randomUUID().toString()
             dao.insertTask(
                 TaskEntity(
@@ -188,11 +189,7 @@ class OmarRepository(
                     actionsPerformed = "Request saved locally",
                     permissionsUsed = permissionsUsed.sorted().joinToString(),
                     result = null,
-                    error = if (apiClient.isConfigured) {
-                        "A verified sign-in session is required; this v1 has no sign-in flow. No analysis or external action occurred."
-                    } else {
-                        "Omar AI service is not connected; no analysis or external action occurred."
-                    },
+                    error = "Omar AI service is not connected; no analysis or external action occurred.",
                     cancellable = true,
                     approvalPrompt = null,
                     providerEvidenceId = null,
@@ -205,11 +202,7 @@ class OmarRepository(
                 ChatMessageEntity(
                     UUID.randomUUID().toString(),
                     "ASSISTANT",
-                    if (apiClient.isConfigured) {
-                        "I routed this to ${route.agent} and saved it as Planned, but a verified sign-in session is required and this v1 has no sign-in flow. No analysis or external action occurred.$caution"
-                    } else {
-                        "I routed this to ${route.agent} and saved it as Planned, but the Omar AI service is not connected. No analysis or external action occurred.$caution"
-                    },
+                    "I routed this to ${route.agent} and saved it as Planned, but the Omar AI service is not connected. No analysis or external action occurred.$caution",
                     route.agent,
                     taskId,
                     now + 1,
@@ -230,7 +223,7 @@ class OmarRepository(
                 PlanTaskRequest(
                     text = requestText,
                     locale = Locale.getDefault().toLanguageTag(),
-                    conversationId = UUID.randomUUID().toString(),
+                    conversationId = preferences.activeConversationId(),
                     attachments = attachmentMetadata,
                 ),
             )
@@ -361,6 +354,11 @@ class OmarRepository(
                 }
             }
         }
+    }
+
+    suspend fun startNewConversation() {
+        preferences.startNewConversation()
+        dao.clearMessages()
     }
 
     suspend fun requestRemoteAccountDeletion(): ApiResult<AccountDeletionData> = apiClient.call {

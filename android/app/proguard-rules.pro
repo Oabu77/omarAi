@@ -4,7 +4,8 @@
 -keep interface com.darcloud.omarai.data.api.OmarApi { *; }
 -keep class com.darcloud.omarai.data.api.** { *; }
 
-# Moshi reflects over the small API contract models in this first release.
+# KotlinJsonAdapterFactory reflects over these API contract classes in release builds.
+# Keep class names, constructors, fields, Kotlin metadata, and annotations intact.
 -keepclassmembers,allowobfuscation class * {
     @com.squareup.moshi.* <methods>;
 }

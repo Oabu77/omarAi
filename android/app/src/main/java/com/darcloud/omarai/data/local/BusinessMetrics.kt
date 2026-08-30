@@ -49,7 +49,7 @@ object BusinessMetricsCalculator {
 
         val attention = buildList {
             val untouched = leads.count { it.status == LeadStatuses.NEW }
-            if (untouched > 0) add("$untouched new lead${if (untouched == 1) "" else "s"} need review")
+            if (untouched > 0) add("$untouched new lead${if (untouched == 1) " needs" else "s need"} review")
             val overdueCandidateCount = invoices.count {
                 it.status in setOf(InvoiceStatuses.SENT, InvoiceStatuses.PARTIAL) &&
                     it.totalMinor > it.paidMinor

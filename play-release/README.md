@@ -10,7 +10,7 @@ This directory contains a **draft, truth-first release pack** for the Android v1
 - the organization address and country;
 - a monitored support email and privacy email;
 - a support phone number, if one will be listed;
-- the public website/domain for the privacy, terms, and deletion pages;
+- authorized control and legal approval of the deployed privacy, terms, support, and deletion pages;
 - trademark rights for “Omar AI™”; and
 - that the Play payments profile, tax profile, and developer verification belong to the same authorized entity.
 
@@ -31,10 +31,11 @@ No address, phone number, or legal-contact email has been invented in these file
 | `data-safety/play-console-template.md` | Draft Play Data safety answers |
 | `declarations/app-content.md` | App access, ads, financial, audience, content-rating, and AI drafts |
 | `screenshots/screenshot-plan.md` | Truthful capture plan and captions |
-| `subscriptions/products.md` | Pro and Business SKU plan only |
+| `subscriptions/products.md` | Future Pro and Business product plan; inactive in v0.1.0 |
 | `review/reviewer-instructions.md` | Draft reviewer-access instructions |
 | `review/release-notes.txt` | v1 release notes |
 | `review/testing-checklist.md` | End-to-end release gates |
+| `review/submission-readiness-audit.md` | Current evidence and the eleven remaining closed-test submission gates |
 | `assets/asset-specs.md` | Play asset requirements and export instructions |
 | `assets/icon-source.svg` | Editable 512 × 512 icon source |
 | `assets/icon-512.png` | Verified 512 × 512 Play icon raster |
@@ -48,4 +49,4 @@ Only copy a draft answer into Play Console when the corresponding release-candid
 
 ## Current status
 
-This is a preparation artifact, not proof of release readiness. It describes the disconnected, no-account, local-first v0.1.0 candidate only. A release remains blocked until every applicable item in `review/testing-checklist.md` is complete, legal/contact placeholders are confirmed, approved HTTPS URLs are configured into the app, real screenshots are captured from the signed release candidate, and Play Console confirms the submission state. Pro and Business are draft products only and cannot be purchased in the current artifact.
+This is a preparation artifact, not proof of release readiness. It describes the disconnected, no-account, local-first v0.1.0 candidate only. A signed AAB now exists at `../android/app/build/outputs/bundle/release/app-release.aab` (6,921,439 bytes; SHA-256 `5932622c111d33b93afaa27c38c0c7e44ba871e88f8b1d6c5335f3a71a2edc97`), and its configured privacy/deletion URLs plus the public support and terms endpoints returned HTTP 200 on August 30, 2026. The bundle passed `bundletool validate` and OpenSSL CMS signature verification. A release remains blocked until every applicable item in `review/testing-checklist.md` is complete, legal/contact approvals are confirmed, genuine screenshots are captured from the signed candidate, and Play Console confirms the submission state. Pro and Business are inactive draft products: the current source does not bundle Play Billing, so product queries, purchases, and purchase restoration are unavailable. Merged-manifest/dependency, runtime-network, device, and Play-delivered inspection remain required.

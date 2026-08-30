@@ -1,13 +1,13 @@
 # Play Console app-content declaration draft
 
-Artifact scope: Android package `com.darcloud.omarai`, v0.1.0/code 1, with `OMAR_API_BASE_URL` left at the disconnected `.invalid` default. Status: **draft only; not submitted**. Re-answer everything if a backend URL, authentication, paid purchase, AI generation, upload, analytics, ads, or another integration is enabled.
+Artifact scope: Android package `com.darcloud.omarai`, v0.1.0/code 1, with `OMAR_API_BASE_URL` left at the disconnected `.invalid` default. Status: **draft only; not submitted**. Re-answer everything if a backend URL, authentication, any purchase or subscription flow, AI generation, upload, analytics, ads, or another integration is enabled.
 
 ## Current-build decision summary
 
 | Console area | Proposed answer | Evidence/gate |
 |---|---|---|
 | Ads | **No** | Only INTERNET and CAMERA in the source manifest; no ad SDK or AD_ID in declared dependencies; signed-AAB/runtime audit still required |
-| App access | **All functionality is available without special access** | No account/sign-in/paywall; paid purchase button is disabled without a verification backend |
+| App access | **All functionality is available without special access** | No account/sign-in/paywall; Play Billing is not bundled and Pro/Business query, purchase, and restore are unavailable |
 | Target audience | **18 and over only** | Adult local business organizer; not designed/marketed for children |
 | News app | **No** | No news or magazine content |
 | Health app | **No health features** | No diagnosis, treatment, health record, or device function |
@@ -30,7 +30,7 @@ Before selecting No, inspect the signed AAB merged manifest and full dependency 
 
 Proposed selection: **All functionality in my app is available without any access restrictions.**
 
-No credentials should be entered in Play Console for this build. Reviewers complete the four onboarding pages and can access Home, Business, Tasks, Settings, local export/delete, and integration status. Pro/Business products may be queried from Google Play, but purchase is deliberately unavailable because there is no configured server verifier.
+No credentials should be entered in Play Console for this build. Reviewers complete the four onboarding pages and can access Home, Business, Tasks, Settings, local export/delete, and integration status. The Plans page is informational, shows a static unavailable state, and includes only a disabled “Purchase restore unavailable” indicator—no purchase control or subscription-management link. The Play Billing SDK is not bundled, so Pro/Business product queries, purchase launch, purchase restoration, and paid entitlement activation are unavailable.
 
 If authentication or a remote API is configured in a later artifact, change the selection and supply stable private reviewer credentials/instructions.
 
@@ -68,7 +68,7 @@ Google/IARC assigns the rating. Answer the exact current questionnaire against t
 
 Proposed selection: **My app doesn’t provide any financial features.**
 
-Local invoice totals, paid amounts, and lead values are manual on-device organizer records. The app does not connect a financial account, process customer payment, move/hold/lend/exchange/invest money, advise on investments, provide rewards/credit/insurance, or verify financial data. Google Play subscription purchases are also disabled without a backend verifier.
+Local invoice totals, paid amounts, and lead values are manual on-device organizer records. The app does not connect a financial account, process customer payment, move/hold/lend/exchange/invest money, advise on investments, provide rewards/credit/insurance, or verify financial data. The Play Billing SDK is not bundled, and the disconnected artifact cannot query products or existing purchases, launch or restore a purchase, or activate Pro/Business entitlement.
 
 If any Money Manager, customer-payment, payout, wallet, investment, credit, insurance, or financial-advice capability becomes active, stop and redo the declaration, licensing review, listing, policy, and Data safety form.
 
@@ -97,11 +97,12 @@ The external deletion page in this pack should explain the no-account local-data
 
 ## Data safety summary
 
-Candidate for the disconnected artifact: **No user data is collected or shared by DarCloud through the app**, because records remain on device and no DarCloud API is configured. This answer is not final until the signed AAB runtime audit resolves:
+Source-level candidate for the disconnected artifact: **No user data is collected or shared by DarCloud through the app**, because records remain on device and no DarCloud API is configured. The device speech provider captures audio itself and returns only a locally stored transcript. The source does not bundle Play Billing, access purchase data, or invoke Billing SDK telemetry. This answer is not final until the signed AAB audit confirms:
 
-- Android speech-recognizer processing initiated by the user;
-- Google Play Billing SDK product queries;
-- any transitive SDK behavior; and
+- Android speech-recognizer/provider behavior matches the reviewed source flow;
+- the Play Billing SDK, its billing-service manifest/query components, and Billing-added diagnostic/transitive components are absent;
+- product/purchase queries, purchase launch, restore, reachable purchase-token receipt/transmission, and Billing SDK diagnostic/device telemetry do not occur; dormant future verification DTO/interface names remain unreachable;
+- all other transitive SDK behavior; and
 - every network request observed in production-like testing.
 
 See `../data-safety/inventory.md` and `../data-safety/play-console-template.md`. A configured backend changes the answer to Yes and activates a larger data inventory.
@@ -112,7 +113,7 @@ Expected signed manifest:
 
 | Permission/API | Current use | Required behavior |
 |---|---|---|
-| `android.permission.INTERNET` | Google Play Billing connection and future API capability; Omar API remains unconfigured | No cleartext; document all observed traffic |
+| `android.permission.INTERNET` | Reserved for future API capability; Omar API remains unconfigured and Play Billing is not bundled | No cleartext; signed runtime capture must show no app-initiated endpoint in current flows |
 | `android.permission.CAMERA` | User-invoked `TakePicturePreview` | Request contextually; no upload while API disconnected; delete temporary camera files correctly |
 | Android speech-recognition intent | User-invoked device speech service; Omar AI declares no `RECORD_AUDIO` permission | Device service controls its own permission; Omar AI receives transcript text and does not receive or save raw audio |
 | Android Photo Picker | User-selected image draft context | No broad media permission |
@@ -120,10 +121,12 @@ Expected signed manifest:
 
 Expected absent: `RECORD_AUDIO`, POST_NOTIFICATIONS, location, device contacts, SMS, call logs, phone state, broad media/storage, `MANAGE_EXTERNAL_STORAGE`, AccessibilityService, VPN, device admin, package visibility, exact alarm, full-screen intent, health permissions, notification listener, Advertising ID, and foreground services.
 
+The merged release manifest may also contain AndroidX's app-specific signature permission for non-exported dynamic receivers, non-exported Startup provider and Room invalidation service, and a Profile Installer receiver exported only behind the system-protected `android.permission.DUMP` permission. These are library infrastructure, not user-granted dangerous permissions. Confirm their exact names, origins, exported flags, and protections from the final signed AAB rather than claiming that the merged manifest contains only the two source permissions.
+
 ## Other release checks
 
 - Privacy policy is required in app and at a stable public HTTPS URL even though data is local-only.
 - Target API is 36 for this artifact; re-check the official requirement at submission.
 - No independent-security-review badge may be claimed.
 - Inspect all native libraries for 64-bit and 16 KB page-size compatibility.
-- Build/test remains a release blocker until Gradle/JDK/network prerequisites are available and the AAB is produced.
+- The signed AAB has been produced and passed `bundletool validate` and OpenSSL CMS signature verification. Remaining merged-manifest/dependency, runtime-network, device, policy, and Play-track tests are still release blockers.

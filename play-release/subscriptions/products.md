@@ -1,21 +1,21 @@
 # Proposed Google Play subscription products
 
-Only two paid tiers are in this v1 plan: **Pro** and **Business**. There is no AI Operator SKU, phone-minute add-on, marketplace lead product, lifetime purchase, or external Android checkout in this release pack.
+Only two future paid tiers are contemplated in this plan: **Pro** and **Business**. Both are inactive in v0.1.0. There is no AI Operator SKU, phone-minute add-on, marketplace lead product, lifetime purchase, or external Android checkout in this release pack.
 
-Nothing here proves that Play products exist or that billing is implemented. Do not activate or advertise either subscription until the signed release build completes the billing checklist below and the server is authoritative for entitlements.
+Nothing here proves that Play products exist or that billing is implemented. The v0.1.0 source deliberately does not bundle Play Billing. Do not create, activate, or advertise either subscription until a later signed connected build completes the future billing checklist below and the server is authoritative for entitlements.
 
 ## Product structure
 
 | Tier | Proposed subscription product ID | Proposed base-plan ID | Billing period | Proposed US price | Status |
 |---|---|---|---|---:|---|
-| Pro | `omar_ai_pro` | `monthly-auto` | Auto-renewing monthly | USD 29.00 | Draft; price and product creation require confirmation |
-| Business | `omar_ai_business` | `monthly-auto` | Auto-renewing monthly | USD 99.00 | Draft; price and product creation require confirmation |
+| Pro | `omar_ai_pro` | `monthly-auto` | Auto-renewing monthly | USD 29.00 | Inactive draft; price and product creation require confirmation |
+| Business | `omar_ai_business` | `monthly-auto` | Auto-renewing monthly | USD 99.00 | Inactive draft; price and product creation require confirmation |
 
 Product IDs and package names are durable identifiers. Before creating them, confirm the final Play package, verified DarCloud LLC payments profile, pricing/tax strategy, local currency settings, and current Play Console constraints.
 
 ## Current artifact and future entitlement copy
 
-The disconnected v0.1.0 artifact has one usable access level: **Free local foundation**. Its local request planning, input controls, customer/lead/job/invoice records, dashboard, task status, export, and deletion are not evidence of a paid entitlement. The Pro and Business purchase action is unavailable and no client-only flag unlocks either tier.
+The disconnected v0.1.0 artifact has one usable access level: **Free local foundation**. Its local request planning, input controls, customer/lead/job/invoice records, dashboard, task status, export, and deletion are not evidence of a paid entitlement. Pro and Business are inactive. The source does not bundle or initialize Play Billing, so it cannot query product details or existing purchases, start or restore a purchase, receive a purchase token, or unlock either tier.
 
 Do not publish Pro/Business benefit copy yet. Before activation, replace the placeholders below with a finite, server-configured entitlement/limit matrix proven in the same signed, connected release candidate. A tier name, roadmap, or current local screen is not entitlement evidence.
 
@@ -34,7 +34,17 @@ Explicitly excluded from both tiers until a later verified release ships them:
 - automatic legal filings, licenses, company registration, or bank-account creation; and
 - guaranteed AI accuracy, job pricing, savings, revenue, or business results.
 
-## Purchase-screen requirements
+## Current v0.1.0 artifact gates
+
+Do not release the disconnected candidate until all are PASS for the exact signed AAB:
+
+- [ ] Dependency graph contains no `com.android.billingclient` artifact and no Billing-added Google Data Transport diagnostic dependency.
+- [ ] Merged manifest contains no billing permission, BillingClient query/service component, or Billing-added diagnostic receiver/service.
+- [ ] Plans UI says Pro/Business are inactive and product query, purchase, and restore are unavailable; no displayed price, trial, success, purchase history, or entitlement is simulated.
+- [ ] Runtime capture across cold start, the informational Plans screen, the disabled restore indicator, background/idle, and reinstall shows no billing request, reachable purchase-token receipt/transmission, or Billing SDK diagnostic/device telemetry; no purchase path exists. Dormant future verification DTO/interface names have no call site.
+- [ ] Listing, legal pages, Data safety answers, reviewer notes, screenshots, and release notes match that Billing-free behavior.
+
+## Future connected purchase-screen requirements
 
 - Display the localized Play price and billing period returned by `ProductDetails`; never hardcode the checkout price as authoritative.
 - Show material entitlements and usage limits before the purchase button.
@@ -44,9 +54,9 @@ Explicitly excluded from both tiers until a later verified release ships them:
 - Do not preselect a more expensive tier, hide the free path, manufacture urgency, or obstruct cancellation.
 - If no production product is returned, show “Subscriptions unavailable” rather than a simulated success.
 
-## Backend lifecycle gate
+## Future connected billing lifecycle gate
 
-The subscription is not launch-ready until all are PASS:
+Neither subscription is launch-ready until all are PASS in the same later signed connected release:
 
 - [ ] Current supported Play Billing Library is present in the signed release build.
 - [ ] Products/base plans are active for the correct package and test track.
@@ -66,7 +76,7 @@ The subscription is not launch-ready until all are PASS:
 
 ## Test accounts
 
-Use Play license testers and test-track installs, not sideloaded production-billing assumptions. Record for each scenario:
+For the future connected release, use Play license testers and test-track installs, not sideloaded production-billing assumptions. Record for each scenario:
 
 - test account alias (never commit its password);
 - app version code and package;
@@ -79,7 +89,7 @@ Use Play license testers and test-track installs, not sideloaded production-bill
 
 ## Console confirmations
 
-`[[CONFIRM_PACKAGE_NAME]]`  
+Package: `com.darcloud.omarai`
 `[[CONFIRM_US_PRICES_AND_LOCAL_PRICING]]`  
 `[[CONFIRM_TAX_AND_MERCHANT_SETTINGS]]`  
 `[[CONFIRM_FREE_PRO_BUSINESS_QUOTAS]]`  

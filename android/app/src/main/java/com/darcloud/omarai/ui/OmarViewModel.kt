@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.atomic.AtomicBoolean
 
 class OmarViewModel(application: Application) : AndroidViewModel(application) {
     private val container = (application as OmarAiApplication).container
@@ -43,11 +44,17 @@ class OmarViewModel(application: Application) : AndroidViewModel(application) {
             BusinessState(emptyList(), emptyList(), emptyList(), emptyList(), BusinessMetricsCalculator.calculate(emptyList(), emptyList(), emptyList())),
         )
     val billing = container.billingManager.state
+    val authState = container.sessionTokens.state
+    private val mutableServiceState = MutableStateFlow(
+        if (container.apiClient.isConfigured) ServiceConnectionState.PENDING else ServiceConnectionState.DISCONNECTED,
+    )
+    val serviceState = mutableServiceState.asStateFlow()
     val apiConfigured: Boolean = container.apiClient.isConfigured
     val authenticatedSessionAvailable: Boolean
         get() = container.apiClient.hasAuthenticatedSession
 
     private val mutableBusy = MutableStateFlow(false)
+    private val actionInFlight = AtomicBoolean(false)
     val busy = mutableBusy.asStateFlow()
     private val mutableFeedback = MutableStateFlow<String?>(null)
     val feedback = mutableFeedback.asStateFlow()
@@ -61,6 +68,11 @@ class OmarViewModel(application: Application) : AndroidViewModel(application) {
     fun submit(text: String, attachments: List<PendingAttachment>, permissionsUsed: Set<String>) = runAction {
         repository.submitRequest(text, attachments, permissionsUsed)
         "Request routed. Check the conversation and Command Center for the exact state."
+    }
+
+    fun startNewConversation() = runAction {
+        repository.startNewConversation()
+        "Started a new conversation. Earlier tasks remain in Command Center."
     }
 
     fun addCustomer(name: String, phone: String?, email: String?) = runAction {
@@ -99,6 +111,7 @@ class OmarViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshIntegrations() = runAction {
         when (val response = container.apiClient.call { integrations() }) {
             is ApiResult.Success -> {
+                mutableServiceState.value = ServiceConnectionState.CONNECTED
                 mutableRemoteIntegrations.value = response.value.integrations.map { (id, state) ->
                     RemoteIntegrationUi(
                         displayName = id.replace(Regex("([a-z])([A-Z])"), "$1 $2")
@@ -113,9 +126,14 @@ class OmarViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 "Integration states refreshed from the service."
             }
-            is ApiResult.Failure -> response.userMessage
+            is ApiResult.Failure -> {
+                mutableServiceState.value = ServiceConnectionState.FAILED
+                response.userMessage
+            }
         }
     }
+
+    fun startBilling() = container.billingManager.start()
 
     fun launchPurchase(activity: Activity, product: PlayProduct) {
         container.billingManager.launchPurchase(activity, product)?.let { mutableFeedback.value = it }
@@ -137,10 +155,19 @@ class OmarViewModel(application: Application) : AndroidViewModel(application) {
         when (val response = repository.requestRemoteAccountDeletion()) {
             is ApiResult.Success -> {
                 val value = response.value
-                if (value.status in setOf("ACCEPTED", "SCHEDULED", "COMPLETED")) {
-                    "Deletion confirmed. Reference: ${value.deletionId}. Status: ${value.status}."
-                } else {
-                    "The service did not confirm deletion. Request: ${response.requestId}; status: ${value.status}."
+                val fullyDeleted = value.status == "COMPLETED" &&
+                    value.identityProviderAccount == "DELETED" &&
+                    value.applicationData == "DELETED" &&
+                    value.deletionId.isNotBlank()
+                when {
+                    fullyDeleted -> {
+                        repository.deleteLocalData()
+                        container.preferences.clear()
+                        container.sessionTokens.signOut()
+                        "Remote account, app data, and local data deletion confirmed complete. Reference: ${value.deletionId}."
+                    }
+                    value.status in setOf("ACCEPTED", "SCHEDULED") -> "Deletion request ${value.status.lowercase()}; completion is not yet confirmed. Reference: ${value.deletionId}."
+                    else -> "The service did not confirm complete deletion. Request: ${response.requestId}; status: ${value.status}."
                 }
             }
             is ApiResult.Failure -> "Remote deletion was not confirmed: ${response.userMessage}"
@@ -150,9 +177,9 @@ class OmarViewModel(application: Application) : AndroidViewModel(application) {
     fun clearFeedback() { mutableFeedback.value = null }
 
     private fun runAction(block: suspend () -> String) {
-        if (mutableBusy.value) return
+        if (!actionInFlight.compareAndSet(false, true)) return
+        mutableBusy.value = true
         viewModelScope.launch {
-            mutableBusy.value = true
             mutableFeedback.value = try {
                 block()
             } catch (error: IllegalArgumentException) {
@@ -161,6 +188,7 @@ class OmarViewModel(application: Application) : AndroidViewModel(application) {
                 "The local action failed and was not reported as complete."
             }
             mutableBusy.value = false
+            actionInFlight.set(false)
         }
     }
 
@@ -244,3 +272,5 @@ class OmarViewModel(application: Application) : AndroidViewModel(application) {
 }
 
 data class RemoteIntegrationUi(val displayName: String, val state: String, val detail: String)
+
+enum class ServiceConnectionState { DISCONNECTED, PENDING, CONNECTED, FAILED }

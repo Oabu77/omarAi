@@ -5,6 +5,7 @@ export interface PlanRequest {
   locale: string;
   conversationId: string;
   businessId?: string;
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
 }
 
 export interface PlanResult {

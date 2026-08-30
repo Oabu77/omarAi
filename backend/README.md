@@ -140,14 +140,14 @@ Configure all of:
 - `BILLING_VERIFIER_URL` — HTTPS URL of a trusted private service that uses the Google Play Developer API.
 - `BILLING_VERIFIER_TOKEN` — secret shared only between trusted backends.
 - `ANDROID_PACKAGE_NAME` — exact Android application ID.
-- `PLAY_PRODUCT_ENTITLEMENTS` — server-controlled JSON map, such as `{"omar_ai_pro_monthly":"pro"}`.
+- `PLAY_PRODUCT_ENTITLEMENTS` — server-controlled JSON map, such as `{"omar_ai_pro":"pro","omar_ai_business":"business"}`.
 
 The verifier receives:
 
 ```json
 {
-  "packageName": "com.example.omarai",
-  "productId": "omar_ai_pro_monthly",
+  "packageName": "com.darcloud.omarai",
+  "productId": "omar_ai_pro",
   "purchaseToken": "raw-token-used-only-for-verification"
 }
 ```
@@ -157,8 +157,8 @@ It must return a response backed by the Google Play Developer API:
 ```json
 {
   "verified": true,
-  "productId": "omar_ai_pro_monthly",
-  "packageName": "com.example.omarai",
+  "productId": "omar_ai_pro",
+  "packageName": "com.darcloud.omarai",
   "providerTransactionId": "Google-owned-transaction-reference",
   "purchaseState": "PURCHASED",
   "acknowledgementState": "ACKNOWLEDGED",

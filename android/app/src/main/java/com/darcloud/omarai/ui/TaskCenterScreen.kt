@@ -1,5 +1,6 @@
 package com.darcloud.omarai.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,17 +9,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -28,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,13 +49,13 @@ import java.util.Date
 fun TaskCenterScreen(viewModel: OmarViewModel, modifier: Modifier = Modifier) {
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
-    var section by remember { mutableStateOf(TaskSection.ACTIVE) }
+    var section by rememberSaveable { mutableStateOf(TaskSection.ACTIVE) }
     var selected by remember { mutableStateOf<TaskEntity?>(null) }
     var approve by remember { mutableStateOf<TaskEntity?>(null) }
     var cancel by remember { mutableStateOf<TaskEntity?>(null) }
     val filtered = tasks.filter { statusOf(it).section() == section }
 
-    selected?.let { task -> TaskDetailDialog(task, { selected = null }, { viewModel.refreshTask(task.id) }) }
+    selected?.let { task -> TaskDetailDialog(task, { selected = null }, { viewModel.refreshTask(task.id); selected = null }) }
     approve?.let { task ->
         AlertDialog(
             onDismissRequest = { approve = null },
@@ -74,7 +78,7 @@ fun TaskCenterScreen(viewModel: OmarViewModel, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxSize()) {
         PageTitle("Command Center", "Exact task state, approvals, evidence, and errors", Icons.Rounded.TaskAlt)
         HonestInfo("Prepared ≠ submitted. Submitted ≠ completed. Completed requires backend verification evidence.", Modifier.padding(horizontal = 16.dp))
-        TaskTabs(section) { section = it }
+        TaskTabs(section, tasks) { section = it }
         if (filtered.isEmpty()) {
             EmptyState(
                 title = "No ${sectionTitle(section).lowercase()} tasks",
@@ -102,19 +106,26 @@ fun TaskCenterScreen(viewModel: OmarViewModel, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TaskTabs(selected: TaskSection, onSelected: (TaskSection) -> Unit) {
-    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        TaskSection.entries.chunked(3).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { section ->
-                    OutlinedButton(onClick = { onSelected(section) }, modifier = Modifier.weight(1f)) {
-                        Text(if (selected == section) "✓ ${sectionTitle(section)}" else sectionTitle(section), maxLines = 1)
-                    }
-                }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-            }
+private fun TaskTabs(selected: TaskSection, tasks: List<TaskEntity>, onSelected: (TaskSection) -> Unit) {
+    LazyRow(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(TaskSection.entries) { section ->
+            val count = tasks.count { statusOf(it).section() == section }
+            FilterChip(
+                selected = selected == section,
+                onClick = { onSelected(section) },
+                label = { Text("${sectionChipTitle(section)} $count") },
+                leadingIcon = if (selected == section) ({ Icon(Icons.Rounded.Check, null) }) else null,
+            )
         }
     }
+}
+
+private fun sectionChipTitle(section: TaskSection): String = when (section) {
+    TaskSection.WAITING_FOR_APPROVAL -> "Approvals"
+    else -> sectionTitle(section)
 }
 
 private fun sectionTitle(section: TaskSection): String = when (section) {
@@ -128,7 +139,12 @@ private fun sectionTitle(section: TaskSection): String = when (section) {
 @Composable
 private fun TaskCard(task: TaskEntity, onDetails: () -> Unit, onApprove: () -> Unit, onCancel: () -> Unit, busy: Boolean) {
     val status = statusOf(task)
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .4f)),
+    ) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(Modifier.weight(1f)) {
@@ -138,12 +154,14 @@ private fun TaskCard(task: TaskEntity, onDetails: () -> Unit, onApprove: () -> U
                 StatusPill(status.name, statusColor(status))
             }
             Text("Started ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(task.startedAtEpochMs))}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-            task.result?.let { Text("Result: $it", Modifier.padding(top = 8.dp)) }
-            task.error?.let { Text("Error: $it", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
-            Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onDetails) { Text("Details") }
-                if (status == TaskStatus.AWAITING_APPROVAL) Button(enabled = !busy, onClick = onApprove) { Text("Review & approve") }
-                if (task.cancellable && !status.isTerminal) OutlinedButton(enabled = !busy, onClick = onCancel) { Text("Cancel") }
+            task.result?.let { Text("Result", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 10.dp)); Text(it, style = MaterialTheme.typography.bodyMedium) }
+            task.error?.let { Text("Error", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 10.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+            if (status == TaskStatus.AWAITING_APPROVAL) {
+                Button(enabled = !busy, onClick = onApprove, modifier = Modifier.fillMaxWidth().padding(top = 12.dp), shape = RoundedCornerShape(14.dp)) { Text("Review & approve") }
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onDetails, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("View details") }
+                if (task.cancellable && !status.isTerminal) OutlinedButton(enabled = !busy, onClick = onCancel, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("Cancel") }
             }
         }
     }

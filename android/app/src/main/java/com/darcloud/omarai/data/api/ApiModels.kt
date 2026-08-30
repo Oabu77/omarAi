@@ -83,7 +83,7 @@ data class RemoteTaskWire(
     val title: String,
     val intent: String,
     val status: String,
-    @Json(name = "error_message") val errorMessage: String? = null,
+    @param:Json(name = "error_message") val errorMessage: String? = null,
     val receipt: TaskReceipt,
 )
 

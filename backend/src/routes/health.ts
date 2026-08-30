@@ -34,6 +34,9 @@ function disconnected(evidence: string): IntegrationState {
 
 async function integrationStates(env: Bindings): Promise<Record<string, IntegrationState>> {
   let database: IntegrationState;
+  let authenticatedRequestAt: string | undefined;
+  let successfulInferenceAt: string | undefined;
+  let successfulInferenceModel: string | undefined;
   if (!env.DB) {
     database = disconnected("D1 binding DB is absent.");
   } else {
@@ -46,6 +49,31 @@ async function integrationStates(env: Bindings): Promise<Record<string, Integrat
         verified: true,
         evidence: "A D1 read succeeded during this request.",
       };
+      try {
+        const authenticatedRequest = await env.DB
+          .prepare("SELECT updated_at FROM users ORDER BY updated_at DESC LIMIT 1")
+          .first<{ updated_at: string }>();
+        authenticatedRequestAt = authenticatedRequest?.updated_at;
+
+        const successfulInference = await env.DB
+          .prepare(
+            `SELECT model_provider, model_id, created_at
+               FROM assistant_messages
+              WHERE role = 'assistant'
+                AND model_provider IS NOT NULL
+                AND model_id IS NOT NULL
+              ORDER BY created_at DESC
+              LIMIT 1`,
+          )
+          .first<{ model_provider: string; model_id: string; created_at: string }>();
+        successfulInferenceAt = successfulInference?.created_at;
+        successfulInferenceModel = successfulInference
+          ? `${successfulInference.model_provider}/${successfulInference.model_id}`
+          : undefined;
+      } catch {
+        // A fresh database can pass the D1 probe before migrations or first use.
+        // Keep dependent integrations pending until request-time evidence exists.
+      }
     } catch {
       database = {
         status: "FAILED",
@@ -58,24 +86,42 @@ async function integrationStates(env: Bindings): Promise<Record<string, Integrat
   }
 
   const auth = isAuthConfigured(env)
-    ? {
-        status: "PENDING" as const,
-        mode: mode(env),
-        configured: true,
-        verified: false,
-        evidence: "Issuer, audience, and JWKS URL are configured; verification occurs on authenticated requests.",
-      }
+    ? authenticatedRequestAt
+      ? {
+          status: "CONNECTED" as const,
+          mode: mode(env),
+          configured: true,
+          verified: true,
+          evidence: `A JWT-authenticated request was persisted at ${authenticatedRequestAt}.`,
+        }
+      : {
+          status: "PENDING" as const,
+          mode: mode(env),
+          configured: true,
+          verified: false,
+          evidence: "JWT verification is configured, but no successful authenticated request has been persisted yet.",
+        }
     : disconnected("JWT_ISSUER, JWT_AUDIENCE, or JWKS_URL is absent.");
   const textAi = env.AI
-    ? {
-        status: "PENDING" as const,
-        mode: mode(env),
-        configured: true,
-        verified: false,
-        evidence: "Cloudflare Workers AI binding is configured; only a successful request-time inference produces verified model evidence.",
-        model: env.MODEL_TEXT?.trim() || "@cf/zai-org/glm-5.2",
-        adapterImplemented: true,
-      }
+    ? successfulInferenceAt
+      ? {
+          status: "CONNECTED" as const,
+          mode: mode(env),
+          configured: true,
+          verified: true,
+          evidence: `A model-backed assistant response was persisted at ${successfulInferenceAt}.`,
+          model: successfulInferenceModel || env.MODEL_TEXT?.trim() || "@cf/zai-org/glm-5.2",
+          adapterImplemented: true,
+        }
+      : {
+          status: "PENDING" as const,
+          mode: mode(env),
+          configured: true,
+          verified: false,
+          evidence: "Cloudflare Workers AI is configured, but no successful inference has been persisted yet.",
+          model: env.MODEL_TEXT?.trim() || "@cf/zai-org/glm-5.2",
+          adapterImplemented: true,
+        }
     : disconnected("Cloudflare Workers AI binding AI is absent.");
   const billing = isBillingConfigured(env)
     ? {
@@ -138,11 +184,11 @@ export function registerHealthRoutes(app: Hono<AppEnvironment>): void {
     const integrations = await integrationStates(c.env);
     const coreReady =
       integrations.database?.status === "CONNECTED" &&
-      integrations.authentication?.configured === true &&
+      integrations.authentication?.status === "CONNECTED" &&
       integrations.aiText?.status === "CONNECTED";
     const payload = {
       service: "omar-ai-api",
-      version: "0.1.0",
+      version: "0.2.0",
       status: coreReady ? "READY" : "DEGRADED",
       checkedAt: new Date().toISOString(),
       coreReady,

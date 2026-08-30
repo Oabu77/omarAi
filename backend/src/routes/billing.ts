@@ -24,6 +24,14 @@ export interface VerifiedPurchase {
   };
 }
 
+function verifierString(value: unknown, field: string, max: number): string {
+  try {
+    return requireString(value, field, max);
+  } catch {
+    throw new ApiError(502, "BILLING_VERIFIER_INVALID_RESPONSE", `The billing verifier returned an invalid ${field}.`);
+  }
+}
+
 async function hashSecret(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -82,22 +90,22 @@ export function parseVerification(value: unknown): VerifiedPurchase {
   if (!isRecord(value) || typeof value.verified !== "boolean") {
     throw new ApiError(502, "BILLING_VERIFIER_INVALID_RESPONSE", "The billing verifier returned an invalid response.");
   }
-  const productId = requireString(value.productId, "verifier.productId", 200);
-  const packageName = requireString(value.packageName, "verifier.packageName", 300);
-  const providerTransactionId = requireString(value.providerTransactionId, "verifier.providerTransactionId", 500);
-  const purchaseState = requireString(value.purchaseState, "verifier.purchaseState", 20);
+  const productId = verifierString(value.productId, "productId", 200);
+  const packageName = verifierString(value.packageName, "packageName", 300);
+  const providerTransactionId = verifierString(value.providerTransactionId, "providerTransactionId", 500);
+  const purchaseState = verifierString(value.purchaseState, "purchaseState", 20);
   if (!["PURCHASED", "PENDING", "CANCELED"].includes(purchaseState)) {
     throw new ApiError(502, "BILLING_VERIFIER_INVALID_RESPONSE", "The billing verifier returned an invalid purchase state.");
   }
-  const acknowledgementState = requireString(value.acknowledgementState, "verifier.acknowledgementState", 20);
+  const acknowledgementState = verifierString(value.acknowledgementState, "acknowledgementState", 20);
   if (acknowledgementState !== "ACKNOWLEDGED" && acknowledgementState !== "PENDING") {
     throw new ApiError(502, "BILLING_VERIFIER_INVALID_RESPONSE", "The billing verifier returned an invalid acknowledgement state.");
   }
-  const productType = requireString(value.productType, "verifier.productType", 20);
+  const productType = verifierString(value.productType, "productType", 20);
   if (productType !== "SUBSCRIPTION" && productType !== "ONE_TIME") {
     throw new ApiError(502, "BILLING_VERIFIER_INVALID_RESPONSE", "The billing verifier returned an invalid product type.");
   }
-  const verifiedAt = requireString(value.verifiedAt, "verifier.verifiedAt", 40);
+  const verifiedAt = verifierString(value.verifiedAt, "verifiedAt", 40);
   const verifiedTimestamp = Date.parse(verifiedAt);
   if (!Number.isFinite(verifiedTimestamp) || verifiedTimestamp > Date.now() + 5 * 60_000) {
     throw new ApiError(502, "BILLING_VERIFIER_INVALID_RESPONSE", "The billing verifier returned an invalid verification time.");
@@ -108,8 +116,8 @@ export function parseVerification(value: unknown): VerifiedPurchase {
   }
   let lifecycleEvidence: VerifiedPurchase["lifecycleEvidence"];
   if (isRecord(value.lifecycleEvidence)) {
-    const lastReconciledAt = requireString(value.lifecycleEvidence.lastReconciledAt, "verifier.lifecycleEvidence.lastReconciledAt", 40);
-    const evidenceReference = requireString(value.lifecycleEvidence.evidenceReference, "verifier.lifecycleEvidence.evidenceReference", 500);
+    const lastReconciledAt = verifierString(value.lifecycleEvidence.lastReconciledAt, "lifecycleEvidence.lastReconciledAt", 40);
+    const evidenceReference = verifierString(value.lifecycleEvidence.evidenceReference, "lifecycleEvidence.evidenceReference", 500);
     if (!Number.isFinite(Date.parse(lastReconciledAt))) {
       throw new ApiError(502, "BILLING_VERIFIER_INVALID_RESPONSE", "Lifecycle evidence has an invalid reconciliation time.");
     }

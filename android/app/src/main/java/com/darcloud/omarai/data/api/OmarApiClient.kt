@@ -11,14 +11,9 @@ import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 
 interface SessionTokenProvider {
+    val isConfigured: Boolean
     fun currentToken(): String?
-}
-
-/** Tokens intentionally remain in memory until a real authentication flow is connected. */
-class InMemorySessionTokenProvider : SessionTokenProvider {
-    @Volatile private var token: String? = null
-    override fun currentToken(): String? = token
-    fun update(value: String?) { token = value }
+    suspend fun ensureValidToken(): String?
 }
 
 sealed interface ApiResult<out T> {
@@ -71,8 +66,11 @@ class OmarApiClient(private val tokenProvider: SessionTokenProvider) {
 
     suspend fun <T> call(block: suspend OmarApi.() -> ApiEnvelope<T>): ApiResult<T> {
         if (!isConfigured) return ApiResult.Failure("Omar AI service is not connected.")
-        if (!hasAuthenticatedSession) {
-            return ApiResult.Failure("A verified sign-in session is required. This v1 has no sign-in flow.")
+        if (!tokenProvider.isConfigured) {
+            return ApiResult.Failure("Omar AI authentication is not configured.")
+        }
+        if (tokenProvider.ensureValidToken().isNullOrBlank()) {
+            return ApiResult.Failure("Could not establish a verified Omar AI session. Please retry.")
         }
         return try {
             val envelope = api.block()

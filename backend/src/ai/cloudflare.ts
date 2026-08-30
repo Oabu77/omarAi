@@ -39,6 +39,7 @@ export class CloudflareWorkersAiProvider implements AiProvider {
       raw = await this.env.AI.run(model, {
         messages: [
           { role: "system", content: system },
+          ...(request.history ?? []),
           { role: "user", content: request.text },
         ],
         max_tokens: 1_600,

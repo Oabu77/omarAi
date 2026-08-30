@@ -5,6 +5,7 @@ import com.darcloud.omarai.data.api.AccountDeletionData
 import com.darcloud.omarai.data.api.AiOutputReportRequest
 import com.darcloud.omarai.data.api.ApproveTaskRequest
 import com.darcloud.omarai.data.api.BillingVerificationData
+import com.darcloud.omarai.data.api.CancelTaskRequest
 import com.darcloud.omarai.data.api.DeleteAccountRequest
 import com.darcloud.omarai.data.api.PlanTaskData
 import com.darcloud.omarai.data.api.PlanTaskRequest
@@ -34,6 +35,7 @@ class ApiContractTest {
     @Test fun explicitApprovalAndDeletionBodiesMatchBackend() {
         assertEquals("{\"approved\":true}", moshi.adapter(ApproveTaskRequest::class.java).toJson(ApproveTaskRequest()))
         assertEquals("{\"confirm\":true}", moshi.adapter(DeleteAccountRequest::class.java).toJson(DeleteAccountRequest()))
+        assertEquals("{\"reason\":\"user_requested\"}", moshi.adapter(CancelTaskRequest::class.java).toJson(CancelTaskRequest()))
     }
 
     @Test fun moderationReportUsesPreparedStateAndTypedCategory() {
@@ -90,5 +92,29 @@ class ApiContractTest {
         )!!
         assertEquals("delete-1", value.data!!.deletionId)
         assertEquals("request-1", value.requestId)
+    }
+
+    @Test fun attachmentsSendMetadataOnlyAndNeverAUriOrRawBytesField() {
+        val json = moshi.adapter(PlanTaskRequest::class.java).toJson(
+            PlanTaskRequest(
+                text = "Prepare a local estimate",
+                locale = "en-US",
+                conversationId = "conversation-9",
+                attachments = listOf(
+                    com.darcloud.omarai.data.api.AttachmentMetadata(
+                        name = "demo.jpg",
+                        mimeType = "image/jpeg",
+                        source = "PHOTO_PICKER",
+                    ),
+                ),
+            ),
+        )
+        assertTrue(json.contains("\"name\":\"demo.jpg\""))
+        assertTrue(json.contains("\"mimeType\":\"image/jpeg\""))
+        assertTrue(json.contains("\"source\":\"PHOTO_PICKER\""))
+        assertFalse(json.contains("content://"))
+        assertFalse(json.contains("file://"))
+        assertFalse(json.contains("base64"))
+        assertFalse(json.contains("bytes"))
     }
 }

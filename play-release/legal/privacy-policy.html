@@ -28,8 +28,8 @@
         <tr><td>Preferences</td><td>Whether onboarding is complete</td><td>Stored in Android app storage</td></tr>
         <tr><td>Requests and tasks</td><td>Typed text, returned speech transcript, deterministic routing/status messages, task state, audit details, and locally saved output reports</td><td>Stored in the local Room database; no AI answer is generated while the service is disconnected</td></tr>
         <tr><td>Business records</td><td>Customer name with optional phone/email; lead title/status/value; job title/status/schedule; invoice label/status/total/paid amount</td><td>Stored locally; invoices are organizer records only and are not sent or paid by the app</td></tr>
-        <tr><td>Camera/photo/file context</td><td>A camera preview in app-private cache; a temporary Android picker reference; and filename, MIME type, and source metadata stored with the local draft</td><td>Raw photo/file bytes are not uploaded or analyzed while the Omar AI service is disconnected</td></tr>
-        <tr><td>Billing display state</td><td>Pro/Business product metadata returned by Google Play, if available</td><td>Purchase is disabled without a connected backend verifier; no paid entitlement is granted locally</td></tr>
+        <tr><td>Camera/photo/file context</td><td>A camera preview in app-private cache; plus a temporary in-memory Android picker reference and filename, MIME type, and source metadata while the draft is open</td><td>Raw photo/file bytes are not uploaded or analyzed while the Omar AI service is disconnected; picker metadata is not retained in the local database/export after submission</td></tr>
+        <tr><td>Plans display state</td><td>A static notice that Pro and Business are unavailable</td><td>The app does not bundle Play Billing. It cannot query products or existing purchases, start or restore a purchase, receive a purchase token, or activate a paid entitlement.</td></tr>
         <tr><td>Export</td><td>A JSON copy of supported local records</td><td>Written only to the destination you choose through Android’s document picker</td></tr>
       </tbody>
     </table>
@@ -38,7 +38,7 @@
   <h2>3. Device and third-party services</h2>
   <ul>
     <li><strong>Android speech recognition:</strong> When you tap the microphone, the speech-recognition service selected on your device captures speech and returns text to Omar AI. Omar AI does not receive or save raw audio. The speech provider may process data under its own privacy terms.</li>
-    <li><strong>Google Play:</strong> Google handles app installation and may handle product queries through Play Billing. A Pro/Business purchase cannot start in this build because server verification is not configured. Omar AI does not collect raw card data.</li>
+    <li><strong>Google Play:</strong> Google handles app installation. This build has no in-app subscription-management link and does not include the Play Billing SDK, query products or purchase history, start or restore an Omar AI purchase, receive a purchase token, or activate Pro/Business. It does not collect raw card data. Google Play handles its own service under Google's terms.</li>
     <li><strong>External browser/Play app:</strong> A link opens only after you tap it and is then handled by Android, your browser, or Google Play.</li>
   </ul>
   <p>DarCloud does not sell personal information, use it for cross-context behavioral advertising, or include an advertising SDK in this release.</p>
@@ -47,14 +47,14 @@
   <ul>
     <li><strong>Camera:</strong> requested only after you choose camera input.</li>
     <li><strong>Voice input:</strong> launches the speech-recognition service installed on your device. Omar AI does not request microphone permission itself; the selected speech service controls its own permission and privacy handling.</li>
-    <li><strong>Internet:</strong> used by Google Play Billing and reserved for a future configured service; the Omar AI service remains disconnected in this artifact.</li>
+    <li><strong>Internet:</strong> reserved for a future configured Omar AI service; that service remains disconnected and Play Billing is not bundled in this artifact. Signed-build network testing must confirm that current app flows initiate no unexpected traffic.</li>
     <li><strong>Photos and documents:</strong> selected through Android system pickers without broad photo-library or storage permission.</li>
   </ul>
   <p>The app does not request location, contacts, SMS, call logs, phone state, notification, broad media/storage, Accessibility Service, or Advertising ID permission.</p>
 
   <h2>5. Retention and deletion</h2>
-  <p>Local database records remain until you delete them, clear app storage, or uninstall the app. Android backup is disabled for Omar AI app data. The in-app <strong>Delete local data</strong> control removes supported local database records—customers, leads, jobs, invoices, conversations, tasks, audit events, and output reports—and clears Omar AI camera-preview cache files and any legacy persisted picker grants.</p>
-  <p>A camera preview is also removed when you remove it from a draft, process the draft, or leave the Home screen. An original photo or document selected from outside Omar AI is not deleted by Omar AI. See <a href="account-deletion.html">Delete local data</a> for exact steps.</p>
+  <p>Local database records remain until you delete them, clear app storage, or uninstall the app. Android backup is disabled for Omar AI app data. The in-app <strong>Delete local data</strong> control removes supported local database records—customers, leads, jobs, invoices, conversations, tasks, audit events, and output reports—and attempts to remove Omar AI camera-preview cache files and any legacy persisted picker grants. Use Android Clear storage or uninstall if you need to remove all app-private data.</p>
+  <p>The app also attempts to remove a camera preview when you remove it from a draft, process the draft, or leave the Home screen. An original photo or document selected from outside Omar AI is not deleted by Omar AI. See <a href="account-deletion.html">Delete local data</a> for exact steps.</p>
 
   <h2>6. Security</h2>
   <p>Local records use Android app-private storage, Android backup is disabled, and release configuration prohibits cleartext network traffic. This release does not claim end-to-end encryption, encrypted local database fields, an independent security certification, or a live DarCloud cloud service. No method is perfectly secure; protect your unlocked device and avoid entering information unnecessary for your work.</p>

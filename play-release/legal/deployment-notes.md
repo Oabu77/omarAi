@@ -1,6 +1,6 @@
 # Legal-site deployment and future deletion-form notes
 
-The files in this directory are static, tracking-free source for the current **no-account, disconnected Android v0.1.0** candidate. They contain relative links and can be used as the source of a GitHub Pages policy site only after the confirmation gates below pass. They are not evidence that a website, app, or Play release is deployed.
+The files in this directory are static, tracking-free source for the current **no-account, disconnected Android v0.1.0** candidate. They contain relative links and staged placeholders. A separate Omar AI support/legal site is deployed at the verified URLs below; each endpoint returned HTTP 200 on August 30, 2026. HTTP status alone does not prove that the hosted content matches these files, that all legal/contact approvals are complete, or that the app or Play release is deployed.
 
 The current `account-deletion.html` is intentionally an instruction page, not a web form. This release creates no Omar AI account and sends no app data to a DarCloud backend, so users delete data in the app, clear Android app storage, or uninstall. Do not add or submit a disabled or fake account-deletion form for this artifact.
 
@@ -16,35 +16,35 @@ The current `account-deletion.html` is intentionally an instruction page, not a 
 
 All pages use relative navigation and include no analytics, ads, pixels, remote fonts, external scripts, cookies, or form submission. Keep that property unless a later privacy/Data safety review approves a change.
 
-## Required confirmation before public hosting
+## Verified public endpoints
+
+| Role | URL | Verified evidence |
+|---|---|---|
+| Landing page | `https://omar-ai-support.omarabunadi28.chatgpt.site` | HTTP 200 on August 30, 2026 |
+| Support | `https://omar-ai-support.omarabunadi28.chatgpt.site/support` | HTTP 200 on August 30, 2026 |
+| Privacy | `https://omar-ai-support.omarabunadi28.chatgpt.site/privacy` | HTTP 200 on August 30, 2026; configured in signed AAB |
+| Terms | `https://omar-ai-support.omarabunadi28.chatgpt.site/terms` | HTTP 200 on August 30, 2026 |
+| Delete local data/no-account guidance | `https://omar-ai-support.omarabunadi28.chatgpt.site/delete-account` | HTTP 200 on August 30, 2026; configured in signed AAB |
+
+## Required confirmation before Console use
 
 - Exact verified Play publisher/entity name and DarCloud LLC authority.
 - Legal mailing address and country.
 - Monitored support and privacy email addresses.
 - Governing law, dispute, liability, and region-specific terms approved by qualified counsel.
 - Trademark/brand authority and launch countries.
-- Stable public HTTPS domain and final paths controlled by the authorized publisher.
+- Authorized publisher control of the deployed domain and final paths.
 - Product, security, privacy, support, and legal approval of the exact hosted files.
 
-Before hosting or entering a URL in Play Console:
+Before entering a URL in Play Console:
 
-1. Replace every unique `[[CONFIRM_…]]` token with approved information.
-2. Remove every visible staged-source notice and proposed-entity qualifier as approved.
-3. Change `noindex,nofollow` to `index,follow` on pages intended for public search indexing.
+1. Compare each hosted page with the approved policy source and replace every unique `[[CONFIRM_…]]` token with approved information.
+2. Confirm no hosted page exposes a staged-source notice or unapproved proposed-entity qualifier.
+3. Confirm pages intended for public search indexing do not retain `noindex,nofollow`.
 4. Configure the final privacy URL in the Android release build; verify the in-app link on a Play-track install.
 5. Run HTML, keyboard, screen-reader, contrast, mobile-layout, and relative-link checks against the deployed HTTPS site.
 6. Confirm the hosted response contains no tracker, redirect, login, geofence, broken asset, or placeholder.
 7. Archive the published source and effective/review date.
-
-Suggested paths are deliberately not filled in until the domain is authorized:
-
-```text
-https://[[CONFIRM_PUBLIC_DOMAIN]]/omar-ai/
-https://[[CONFIRM_PUBLIC_DOMAIN]]/omar-ai/support.html
-https://[[CONFIRM_PUBLIC_DOMAIN]]/omar-ai/privacy-policy.html
-https://[[CONFIRM_PUBLIC_DOMAIN]]/omar-ai/terms-of-service.html
-https://[[CONFIRM_PUBLIC_DOMAIN]]/omar-ai/account-deletion.html
-```
 
 ## Future connected-account form description — not for v0.1.0
 

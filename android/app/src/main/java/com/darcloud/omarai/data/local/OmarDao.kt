@@ -57,6 +57,9 @@ interface OmarDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(value: ChatMessageEntity)
 
+    @Query("DELETE FROM chat_messages")
+    suspend fun clearMessages()
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOutputReport(value: AiOutputReportEntity)
 

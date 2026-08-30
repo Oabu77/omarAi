@@ -18,8 +18,8 @@ No username or password is required.
 5. Business: add fictional customer, lead, job, and invoice records. Dashboard values are calculated from those local records.
 6. Home input controls: voice uses Android speech recognition; camera, photo, and file controls add local draft context. The disconnected build does not upload or analyze those items.
 7. Settings → Integration status shows the Omar AI service and later modules as disconnected.
-8. Settings → Plans & billing may load product metadata from Google Play, but purchase is disabled because backend verification is not configured.
-9. Settings → Privacy & data can export supported local records to JSON or delete local database records, Omar AI camera-preview cache files, and legacy picker grants.
+8. Settings → Plans shows Pro and Business as unavailable and a disabled “Purchase restore unavailable” indicator. It has no purchase control or subscription-management link. This build does not include Play Billing, query products or existing purchases, start or restore a purchase, or activate paid entitlement.
+9. Settings → Privacy & data can export supported local records to JSON or delete local database records. Cache/grant cleanup is attempted; use the checklist’s signed-device tests before claiming it always completes.
 
 This release does not generate live AI answers, create an Omar AI account, place calls, send messages, link financial accounts, book providers, process customer payments, or submit company/legal filings.
 
@@ -33,6 +33,6 @@ Review support: [[CONFIRM_MONITORED_REVIEW_SUPPORT_EMAIL]]
 - [ ] Onboarding does not require an unavailable integration.
 - [ ] Disconnected request produces no network upload and no false AI/external result.
 - [ ] All seeded/captured review data is fictional and created locally.
-- [ ] Plans screen cannot start a purchase without server verification.
+- [ ] Plans screen accurately reports that Play Billing is not included and product query, purchase, restore, and paid entitlement are unavailable.
 - [ ] Export/delete behavior matches the privacy policy.
 - [ ] Support inbox is monitored throughout review/resubmission.

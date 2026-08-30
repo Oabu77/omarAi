@@ -16,7 +16,7 @@ The following paths were verified to exist before this document was updated:
 | Path | What is present | Verification boundary |
 |---|---|---|
 | Repository root | Python conversational CLI, local-runtime metrics, and truthfulness regression tests | Prototype only; it has no external action tools or ecosystem telemetry |
-| `android/` | Android Gradle/Kotlin project with manifest, Compose UI, API/local-data source, and Play Billing source/configuration | Source present; this document does not claim a signed bundle, device-tested release, upload, review, or publication |
+| `android/` | Android Gradle/Kotlin project with manifest, Compose UI, API/local-data source, and a static paid-plans-unavailable screen | Source present; this document does not claim a signed bundle, device-tested release, upload, review, or publication. The v0.1 candidate does not bundle Play Billing or offer purchases. |
 | `backend/` | TypeScript Cloudflare Worker-oriented scaffold with migrations, auth/security/contracts, task/business/billing route source, and an AI-provider interface | Source present; no production deployment, database, provider credential, or endpoint health is verified here |
 | `play-release/` | Draft legal, listing, subscription, asset, and release-preparation material | Preparation only; it does not submit anything to Play Console |
 
@@ -94,15 +94,16 @@ make the Python CLI a backend for the Android application.
   policy URLs outside source control and never put privileged secrets in the APK.
 - Backend configuration belongs under `backend/`. The checked-in example files
   are templates, not proof of configured production services.
-- Billing entitlements, external side effects, and consequential task states must
-  be server-authoritative and verified with provider evidence.
+- Future billing entitlements, external side effects, and consequential task
+  states must be server-authoritative and verified with provider evidence.
 - Unavailable integrations must remain `DISCONNECTED`, `UNKNOWN`, or hidden;
   test and production states must be visibly distinct.
 
 Before claiming release readiness, verify the signed Android App Bundle,
-release-build behavior, accessibility, permissions, billing lifecycle, account
-deletion, privacy/Data Safety declarations, backend production configuration,
-end-to-end actions, and Play Console status.
+release-build behavior, accessibility, permissions, the absence of a billing
+runtime in this candidate, account deletion, privacy/Data Safety declarations,
+backend production configuration, end-to-end actions, and Play Console status.
+A later paid release must add and separately verify its complete billing lifecycle.
 
 ## Result states
 

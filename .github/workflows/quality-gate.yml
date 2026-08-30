@@ -55,8 +55,8 @@ jobs:
             "platforms;android-36" \
             "build-tools;36.0.0"
 
-      - name: Test, lint, and build debug APK
-        run: ./gradlew --no-daemon --stacktrace testDebugUnitTest lintDebug assembleDebug
+      - name: Test URL policy, lint, and build debug APK
+        run: ./gradlew --no-daemon --stacktrace verifyUrlValidationPolicy testDebugUnitTest lintDebug assembleDebug
 
       - name: Upload debug APK
         if: success()
