@@ -27,27 +27,36 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          found=0
-          for name in \
-            GOOGLE_PLAY_SERVICE_ACCOUNT_JSON \
-            PLAY_SERVICE_ACCOUNT_JSON \
-            ANDROID_PUBLISHER_CREDENTIALS \
-            GOOGLE_SERVICE_ACCOUNT_JSON \
-            SERVICE_ACCOUNT_JSON \
-            GOOGLE_PLAY_SERVICE_ACCOUNT \
-            PLAY_STORE_SERVICE_ACCOUNT_JSON \
-            GCP_SERVICE_ACCOUNT_KEY \
-            SUPPLY_JSON_KEY_DATA; do
+          names=(
+            GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+            PLAY_SERVICE_ACCOUNT_JSON
+            ANDROID_PUBLISHER_CREDENTIALS
+            GOOGLE_SERVICE_ACCOUNT_JSON
+            SERVICE_ACCOUNT_JSON
+            GOOGLE_PLAY_SERVICE_ACCOUNT
+            PLAY_STORE_SERVICE_ACCOUNT_JSON
+            GCP_SERVICE_ACCOUNT_KEY
+            SUPPLY_JSON_KEY_DATA
+          )
+          found=false
+          printf '{\n  "credentials": {\n' > readiness.json
+          for i in "${!names[@]}"; do
+            name="${names[$i]}"
+            present=false
             if [ -n "${!name:-}" ]; then
-              echo "$name=present"
-              found=1
-            else
-              echo "$name=absent"
+              present=true
+              found=true
             fi
+            comma=','
+            if [ "$i" -eq "$((${#names[@]} - 1))" ]; then comma=''; fi
+            printf '    "%s": %s%s\n' "$name" "$present" "$comma" >> readiness.json
           done
-          if [ "$found" -eq 1 ]; then
-            echo "publisher_credentials=present" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "publisher_credentials=absent" >> "$GITHUB_STEP_SUMMARY"
-            exit 2
-          fi
+          printf '  },\n  "publisher_credentials_present": %s\n}\n' "$found" >> readiness.json
+          echo "publisher_credentials_present=$found" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload readiness result
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-play-publisher-readiness
+          path: readiness.json
+          retention-days: 1
