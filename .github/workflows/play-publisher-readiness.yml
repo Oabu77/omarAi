@@ -1,0 +1,53 @@
+name: Google Play Publisher Readiness
+
+on:
+  push:
+    paths:
+      - .github/workflows/play-publisher-readiness.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check configured publisher credentials without revealing values
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.ANDROID_PUBLISHER_CREDENTIALS }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
+          PLAY_STORE_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          SUPPLY_JSON_KEY_DATA: ${{ secrets.SUPPLY_JSON_KEY_DATA }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          for name in \
+            GOOGLE_PLAY_SERVICE_ACCOUNT_JSON \
+            PLAY_SERVICE_ACCOUNT_JSON \
+            ANDROID_PUBLISHER_CREDENTIALS \
+            GOOGLE_SERVICE_ACCOUNT_JSON \
+            SERVICE_ACCOUNT_JSON \
+            GOOGLE_PLAY_SERVICE_ACCOUNT \
+            PLAY_STORE_SERVICE_ACCOUNT_JSON \
+            GCP_SERVICE_ACCOUNT_KEY \
+            SUPPLY_JSON_KEY_DATA; do
+            if [ -n "${!name:-}" ]; then
+              echo "$name=present"
+              found=1
+            else
+              echo "$name=absent"
+            fi
+          done
+          if [ "$found" -eq 1 ]; then
+            echo "publisher_credentials=present" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "publisher_credentials=absent" >> "$GITHUB_STEP_SUMMARY"
+            exit 2
+          fi
