@@ -1,0 +1,41 @@
+name = "omar-ai-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-29"
+
+# Copy this file to wrangler.toml, create the resources, and replace placeholders.
+[[d1_databases]]
+binding = "DB"
+database_name = "omar-ai"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[ai]
+binding = "AI"
+
+[vars]
+ENVIRONMENT = "test"
+ALLOWED_ORIGINS = "https://REPLACE_WITH_ADMIN_ORIGIN"
+JWT_ISSUER = "https://securetoken.google.com/REPLACE_WITH_FIREBASE_PROJECT_ID"
+JWT_AUDIENCE = "REPLACE_WITH_FIREBASE_PROJECT_ID"
+JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
+MODEL_TEXT = "@cf/zai-org/glm-5.2"
+# MODEL_VISION and MODEL_TRANSCRIPTION remain unset until those adapters are implemented.
+RATE_LIMIT_PER_MINUTE = "120"
+ASSISTANT_RATE_LIMIT_PER_MINUTE = "20"
+# ANDROID_PACKAGE_NAME = "com.example.omarai"
+# PLAY_PRODUCT_ENTITLEMENTS = '{"omar_ai_pro_monthly":"pro","omar_ai_business_monthly":"business"}'
+# Keep false until the trusted verifier proves RTDN and revocation reconciliation are operational.
+PLAY_LIFECYCLE_VERIFICATION_ENABLED = "false"
+
+# Set secrets with `wrangler secret put`; never add them here:
+# INTERNAL_SERVICE_TOKEN
+# BILLING_VERIFIER_TOKEN
+# AUTH_ACCOUNT_DELETER_TOKEN
+# ACTION_EVIDENCE_VERIFIER_TOKEN
+#
+# Set BILLING_VERIFIER_URL only when it points to a trusted server-side verifier
+# that calls the Google Play Developer API and returns the contract in README.md.
+# Set AUTH_ACCOUNT_DELETER_URL only to a trusted service that deletes the verified
+# JWT subject at the configured identity provider.
+# ACTION_EVIDENCE_VERIFIER_URL must be a trusted backend adapter that verifies
+# provider-owned task receipts; it must never point at a client-controlled URL.

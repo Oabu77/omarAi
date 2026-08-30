@@ -1,12 +1,10 @@
-"""OMAR AI — Founder Command Center application."""
+"""OMAR AI command-line prototype with verification-first status reporting."""
 
 from __future__ import annotations
 
-import os
 import sys
-import textwrap
 from pathlib import Path
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 try:
     import openai
@@ -27,12 +25,72 @@ def _load_system_prompt() -> str:
     return _PROMPT_FILE.read_text(encoding="utf-8")
 
 
+def _format_local_metrics(
+    metrics: Mapping[str, Any], indent: str = "  "
+) -> list[str]:
+    """Format only metrics that the local collector actually measured."""
+
+    unknown = "UNKNOWN — collection unavailable"
+    if metrics.get("uptime_str") is None:
+        uptime = unknown
+    else:
+        uptime = str(metrics["uptime_str"])
+
+    if metrics.get("cpu_percent") is None or metrics.get("cpu_count") is None:
+        cpu = unknown
+    else:
+        cpu = f"{metrics['cpu_percent']:.1f} % ({metrics['cpu_count']} logical CPUs)"
+
+    memory_values = (
+        metrics.get("memory_percent"),
+        metrics.get("memory_used_gb"),
+        metrics.get("memory_total_gb"),
+    )
+    if any(value is None for value in memory_values):
+        memory = unknown
+    else:
+        memory = (
+            f"{metrics['memory_percent']:.1f} % "
+            f"({metrics['memory_used_gb']:.1f} / {metrics['memory_total_gb']:.1f} GB)"
+        )
+
+    disk_values = (
+        metrics.get("disk_percent"),
+        metrics.get("disk_used_gb"),
+        metrics.get("disk_total_gb"),
+    )
+    if any(value is None for value in disk_values):
+        disk = unknown
+    else:
+        disk = (
+            f"{metrics['disk_percent']:.1f} % "
+            f"({metrics['disk_used_gb']:.1f} / {metrics['disk_total_gb']:.1f} GB)"
+        )
+
+    sent = metrics.get("net_bytes_sent")
+    sent_text = unknown if sent is None else live_data.fmt_bytes(sent)
+    received = metrics.get("net_bytes_recv")
+    received_text = unknown if received is None else live_data.fmt_bytes(received)
+    processes = metrics.get("process_count")
+    processes_text = unknown if processes is None else str(processes)
+
+    return [
+        f"{indent}Runtime uptime      : {uptime}",
+        f"{indent}CPU sample          : {cpu}",
+        f"{indent}Memory snapshot     : {memory}",
+        f"{indent}Root disk snapshot  : {disk}",
+        f"{indent}Host bytes sent     : {sent_text} (cumulative)",
+        f"{indent}Host bytes received : {received_text} (cumulative)",
+        f"{indent}Visible processes   : {processes_text}",
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Chat session
 # ---------------------------------------------------------------------------
 
 class OmarAI:
-    """Stateful chat session for the OMAR AI Founder Command Center."""
+    """Stateful chat session for the OMAR AI command-line prototype."""
 
     def __init__(self, mode: str = config.DEFAULT_MODE) -> None:
         self._system_prompt: str = _load_system_prompt()
@@ -72,7 +130,11 @@ class OmarAI:
             {"role": "user", "content": user_input},
         ]
 
-        if self._client is None:
+        if self._is_evidence_command(user_input):
+            # Status and report commands stay deterministic even when an AI
+            # provider is configured. A language model is not a telemetry source.
+            response_text = self._offline_response(user_input)
+        elif self._client is None:
             # No API key available — return a helpful offline message
             response_text = self._offline_response(user_input)
         else:
@@ -89,46 +151,78 @@ class OmarAI:
         self._history.clear()
 
     def status_summary(self) -> str:
-        """Return a concise combined status dashboard with real live host metrics."""
+        """Return measured local metrics and honest external-service states.
+
+        Creating an OpenAI client proves only that client configuration exists; it
+        does not prove that credentials, network access, or the remote API work.
+        Likewise, this CLI has no health probes for the named ecosystem systems.
+        """
         metrics = live_data.collect()
+
+        if self._client is None:
+            ai_provider = "DISCONNECTED — OPENAI_API_KEY is not configured"
+        else:
+            ai_provider = "CONFIGURED — connectivity and credentials not verified"
 
         lines = [
             "OMAR AI — SYSTEM STATUS",
             "=" * 50,
             f"  Snapshot       : {metrics['timestamp']}",
             f"  Operating Mode : {self._mode.upper()} MODE",
-            f"  AI Backend     : {'CONNECTED' if self._client is not None else 'OFFLINE (no API key)'}",
+            f"  AI Provider    : {ai_provider}",
             "",
-            "ECOSYSTEM COMPONENTS",
+            "EXTERNAL COMPONENTS",
             "-" * 50,
         ]
         for component in config.ECOSYSTEM_COMPONENTS:
-            lines.append(f"  • {component}: OPERATIONAL")
-
-        lines += ["", "INFRASTRUCTURE METRICS (Live)", "-" * 50]
-
-        if metrics["psutil_available"]:
-            lines += [
-                f"  System Uptime      : {metrics['uptime_str']}",
-                f"  CPU Usage          : {metrics['cpu_percent']:.1f} %  ({metrics['cpu_count']} cores)",
-                f"  Memory Usage       : {metrics['memory_percent']:.1f} %  ({metrics['memory_used_gb']:.1f} / {metrics['memory_total_gb']:.1f} GB)",
-                f"  Disk Usage         : {metrics['disk_percent']:.1f} %  ({metrics['disk_used_gb']:.1f} / {metrics['disk_total_gb']:.1f} GB)",
-                f"  Net Bytes Sent     : {live_data.fmt_bytes(metrics['net_bytes_sent'])}",
-                f"  Net Bytes Received : {live_data.fmt_bytes(metrics['net_bytes_recv'])}",
-                f"  Active Processes   : {metrics['process_count']}",
-            ]
-        else:
-            lines.append("  (install psutil for live metrics: pip install psutil)")
+            lines.append(f"  • {component}: UNKNOWN — no health probe configured")
 
         lines += [
             "",
-            "Overall Status: ALL SYSTEMS OPERATIONAL",
+            "LOCAL RUNTIME METRICS (MEASURED)",
+            "-" * 50,
+            f"  Scope              : {metrics['measurement_scope']}",
+            f"  Source             : {metrics['measurement_source']}",
+        ]
+
+        if metrics["psutil_available"]:
+            lines.extend(_format_local_metrics(metrics))
+        else:
+            lines.append(
+                "  Metrics            : UNKNOWN — psutil is not installed in this runtime"
+            )
+
+        if metrics["collection_errors"]:
+            lines.append("  Collection errors  :")
+            for field, error in metrics["collection_errors"].items():
+                lines.append(f"    - {field}: {error}")
+
+        lines += [
+            "",
+            "External Status: UNKNOWN — no external health checks were run",
+            "Overall Result : PARTIAL LOCAL VISIBILITY; production state not verified",
         ]
         return "\n".join(lines)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_evidence_command(user_input: str) -> bool:
+        """Return whether a request must use deterministic local evidence."""
+        cmd = user_input.strip().lower()
+        return any(
+            phrase in cmd
+            for phrase in (
+                "ecosystem status",
+                "infrastructure health",
+                "network performance",
+                "service adoption",
+                "operational report",
+                "strategic analysis",
+            )
+        )
 
     def _api_call(self, messages: list[dict[str, str]]) -> str:
         """Call the OpenAI chat completions endpoint."""
@@ -145,128 +239,124 @@ class OmarAI:
 
     @staticmethod
     def _offline_response(user_input: str) -> str:
-        """Return a structured offline placeholder response."""
+        """Return evidence-bounded responses without inventing remote data."""
         cmd = user_input.strip().lower()
 
         if "ecosystem status" in cmd:
             lines = ["ECOSYSTEM STATUS OVERVIEW", "=" * 40]
             for component in config.ECOSYSTEM_COMPONENTS:
-                lines.append(f"  • {component}: OPERATIONAL")
-            lines.append("\nAll systems nominal. No critical alerts detected.")
+                lines.append(f"  • {component}: UNKNOWN — no health probe configured")
+            lines.extend([
+                "",
+                "Result: NOT VERIFIED",
+                "Evidence: this CLI has no external component telemetry or health-check integrations.",
+                "Actions performed: none.",
+            ])
             return "\n".join(lines)
 
         if "infrastructure health" in cmd:
             m = live_data.collect()
+            lines = [
+                "INFRASTRUCTURE OBSERVATION",
+                "=" * 30,
+                f"  Snapshot           : {m['timestamp']}",
+                f"  Scope              : {m['measurement_scope']}",
+                f"  Source             : {m['measurement_source']}",
+            ]
             if m["psutil_available"]:
-                return "\n".join([
-                    "INFRASTRUCTURE HEALTH SUMMARY",
-                    "=" * 30,
-                    f"  System Uptime    : {m['uptime_str']}",
-                    f"  CPU Usage        : {m['cpu_percent']:.1f} %  ({m['cpu_count']} cores)",
-                    f"  Memory Usage     : {m['memory_percent']:.1f} %  ({m['memory_used_gb']:.1f} / {m['memory_total_gb']:.1f} GB)",
-                    f"  Disk Usage       : {m['disk_percent']:.1f} %  ({m['disk_used_gb']:.1f} / {m['disk_total_gb']:.1f} GB)",
-                    f"  Net Bytes Sent   : {live_data.fmt_bytes(m['net_bytes_sent'])}",
-                    f"  Net Bytes Recv   : {live_data.fmt_bytes(m['net_bytes_recv'])}",
-                    f"  Active Processes : {m['process_count']}",
-                    "",
-                    f"Status: HEALTHY — Data collected {m['timestamp']}",
-                ])
-            return textwrap.dedent("""\
-                INFRASTRUCTURE HEALTH SUMMARY
-                ==============================
-                  Node Uptime      : 99.9 %
-                  Avg Latency      : 12 ms
-                  Packet Loss      : 0.01 %
-                  Disk Usage       : 42 %
-                  CPU Load (avg)   : 18 %
-                  Memory Usage     : 61 %
-
-                Status: HEALTHY — No anomalies detected.
-            """)
+                lines.extend(_format_local_metrics(m))
+            else:
+                lines.append(
+                    "  Metrics            : UNKNOWN — psutil is not installed in this runtime"
+                )
+            if m["collection_errors"]:
+                lines.append("  Collection errors  :")
+                for field, error in m["collection_errors"].items():
+                    lines.append(f"    - {field}: {error}")
+            lines.extend([
+                "",
+                "Health assessment: UNKNOWN — no service probes or health thresholds are configured.",
+                "The measurements above describe only the CLI runtime, not QuranChain, DarCloud, or other external systems.",
+            ])
+            return "\n".join(lines)
 
         if "network performance" in cmd:
-            return textwrap.dedent("""\
-                NETWORK PERFORMANCE REPORT
-                ===========================
-                  Transaction Throughput : 4,200 TPS
-                  Block Finality         : 1.8 s
-                  Bridge Latency         : 3.4 s
-                  Mesh Node Count        : 1,140
-                  Encrypted Sessions     : 8,712
-
-                Performance within expected parameters.
-            """)
+            return "\n".join([
+                "NETWORK PERFORMANCE STATUS",
+                "=" * 30,
+                "  Transaction throughput : UNKNOWN",
+                "  Block finality          : UNKNOWN",
+                "  Bridge latency          : UNKNOWN",
+                "  Mesh node count         : UNKNOWN",
+                "  Service uptime          : UNKNOWN",
+                "",
+                "Evidence: no blockchain, bridge, mesh, or service telemetry endpoint is configured.",
+                "Local host byte counters are cumulative I/O and do not prove application throughput or health.",
+                "Actions performed: none.",
+            ])
 
         if "service adoption" in cmd:
-            return textwrap.dedent("""\
-                SERVICE ADOPTION METRICS
-                =========================
-                  Active Members         : 14,300
-                  New Registrations (7d) : 820
-                  Merchant Accounts      : 560
-                  Halal Card Holders     : 9,100
-                  DarCloud Active Users  : 6,200
-
-                Growth trend: POSITIVE.
-            """)
+            return "\n".join([
+                "SERVICE ADOPTION STATUS",
+                "=" * 30,
+                "  Active users         : UNKNOWN",
+                "  Active members       : UNKNOWN",
+                "  Registrations        : UNKNOWN",
+                "  Merchant accounts    : UNKNOWN",
+                "  Paid subscriptions   : UNKNOWN",
+                "",
+                "Evidence: no analytics, CRM, billing, or membership data source is connected to this CLI.",
+                "Trend: NOT DETERMINED.",
+                "Actions performed: none.",
+            ])
 
         if "operational report" in cmd:
-            return textwrap.dedent("""\
-                OPERATIONAL REPORT
-                ===================
-                [Infrastructure]
-                  All nodes operational. No outages recorded.
-
-                [Network]
-                  Transaction throughput stable at 4,200 TPS.
-                  Mesh network routing nominal.
-
-                [Services]
-                  Membership growth +6% week-over-week.
-                  Halal Card processing running normally.
-
-                [Security]
-                  No anomalous patterns detected.
-                  All encrypted communication channels active.
-
-                [Recommendations]
-                  • Continue validator node expansion.
-                  • Evaluate cross-chain bridge capacity for Q2 traffic forecast.
-                  • Schedule DarCloud storage tier review.
-
-                Report generated by OMAR AI Founder Command Center.
-            """)
+            m = live_data.collect()
+            lines = [
+                "OPERATIONAL VERIFICATION REPORT",
+                "=" * 35,
+                f"Snapshot: {m['timestamp']}",
+                "",
+                "[External infrastructure, network, services, and security]",
+                "  State: UNKNOWN",
+                "  Evidence: no external probes, logs, analytics, or security feeds are connected.",
+                "",
+                "[Local CLI runtime]",
+            ]
+            if m["psutil_available"]:
+                lines.extend(_format_local_metrics(m, indent="  "))
+            else:
+                lines.append("  Metrics: UNKNOWN — psutil is not installed in this runtime")
+            lines.extend([
+                "",
+                "[Action record]",
+                "  No external action was attempted or completed.",
+                "",
+                "Conclusion: production operational status cannot be determined from this CLI.",
+            ])
+            return "\n".join(lines)
 
         if "strategic analysis" in cmd:
-            return textwrap.dedent("""\
-                STRATEGIC ANALYSIS
-                ====================
-                [Opportunity 1 — Validator Network Expansion]
-                  Increasing validator node count improves throughput and
-                  decentralization. Recommend targeting 500 new nodes in
-                  strategic geographic regions.
-
-                [Opportunity 2 — Dar Al-Nas Merchant Partnerships]
-                  Onboarding halal-certified merchants accelerates Halal Card
-                  adoption and drives transaction fee revenue.
-
-                [Opportunity 3 — MeshTalk OS Licensing]
-                  License MeshTalk OS infrastructure to Islamic institutions
-                  seeking sovereign communication networks.
-
-                [Risk — Centralized Dependency]
-                  Audit all third-party API dependencies and create redundancy
-                  plans for critical infrastructure services.
-
-                Strategic posture: EXPANSION PHASE — Maintain operational
-                discipline while accelerating adoption across all verticals.
-            """)
+            return "\n".join([
+                "STRATEGIC ANALYSIS — DATA LIMITED",
+                "=" * 35,
+                "Verified business, adoption, financial, and infrastructure data: NONE CONNECTED",
+                "",
+                "Prepared next steps (recommendations only):",
+                "  • Connect read-only telemetry and define service-level thresholds.",
+                "  • Connect authoritative analytics and billing sources before evaluating adoption.",
+                "  • Validate market demand, unit economics, legal constraints, and security risks before expansion.",
+                "  • Require approval and provider confirmation for every consequential external action.",
+                "",
+                "Result state: PREPARED — nothing was submitted or completed.",
+            ])
 
         # Default — ask user to configure API key for full AI responses
         return (
-            "[OMAR AI — OFFLINE MODE]\n"
-            "No OPENAI_API_KEY detected. Set the environment variable to enable "
-            "full AI responses.\n\n"
+            "[OMAR AI — AI PROVIDER DISCONNECTED]\n"
+            "Evidence: OPENAI_API_KEY is not configured. The local CLI can show "
+            "measured host metrics and prepare guidance, but it cannot execute or "
+            "verify external actions.\n\n"
             "Recognized commands:\n"
             "  show ecosystem status\n"
             "  show infrastructure health\n"
@@ -305,14 +395,14 @@ def _handle_built_in(ai: OmarAI, user_input: str) -> Optional[str]:
 
 
 def main() -> None:
-    """Run the OMAR AI interactive command center CLI."""
+    """Run the OMAR AI interactive command-line prototype."""
     print(config.BANNER)
     print(f"Operating Mode : {config.DEFAULT_MODE.upper()} MODE")
     print(f"Model          : {config.MODEL}")
     if not config.OPENAI_API_KEY:
-        print("API Key        : NOT SET (running in offline mode)\n")
+        print("AI Provider    : DISCONNECTED (OPENAI_API_KEY not set)\n")
     else:
-        print("API Key        : CONFIGURED\n")
+        print("AI Provider    : CONFIGURED (connection not yet verified)\n")
     print('Type "help" for available commands or "exit" to quit.\n')
 
     ai = OmarAI()

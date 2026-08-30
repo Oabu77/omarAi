@@ -1,0 +1,33 @@
+#!/bin/sh
+
+set -f
+
+script=$0
+case "$script" in
+    */*) app_dir=${script%/*} ;;
+    *) app_dir=. ;;
+esac
+APP_HOME=$(cd "$app_dir" >/dev/null 2>&1 && pwd -P) || exit 1
+CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+
+if [ -n "${JAVA_HOME:-}" ]; then
+    JAVACMD=$JAVA_HOME/bin/java
+else
+    JAVACMD=java
+fi
+
+if ! command -v "$JAVACMD" >/dev/null 2>&1; then
+    echo "Java 17 was not found. Set JAVA_HOME or add java to PATH." >&2
+    exit 1
+fi
+if [ ! -r "$CLASSPATH" ]; then
+    echo "Missing Gradle wrapper JAR: $CLASSPATH" >&2
+    exit 1
+fi
+
+# JAVA_OPTS and GRADLE_OPTS intentionally use normal shell word splitting, matching Gradle's wrapper.
+# shellcheck disable=SC2086
+exec "$JAVACMD" ${JAVA_OPTS:-} ${GRADLE_OPTS:-} \
+    "-Dorg.gradle.appname=gradlew" \
+    -classpath "$CLASSPATH" \
+    org.gradle.wrapper.GradleWrapperMain "$@"

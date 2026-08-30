@@ -1,4 +1,4 @@
-"""Configuration for OMAR AI Founder Command Center."""
+"""Configuration for the OMAR AI command-line prototype."""
 
 import os
 
@@ -16,23 +16,23 @@ TEMPERATURE: float = float(os.environ.get("OMAR_AI_TEMPERATURE", "0.3"))
 OPERATING_MODES: dict[str, str] = {
     "strategy": (
         "You are in STRATEGY MODE. "
-        "Analyze long-term opportunities, ecosystem positioning, and potential "
-        "partnerships or expansion paths."
+        "Prepare evidence-bounded analysis of long-term opportunities, ecosystem "
+        "positioning, and potential partnerships or expansion paths."
     ),
     "operations": (
         "You are in OPERATIONS MODE. "
-        "Monitor infrastructure health, system uptime, network performance, "
-        "and service reliability."
+        "Assess only supplied or verified infrastructure evidence. Never infer "
+        "uptime, network performance, deployment, or service reliability."
     ),
     "financial": (
         "You are in FINANCIAL INSIGHT MODE. "
-        "Evaluate growth indicators such as adoption trends, usage patterns, "
-        "and sustainability metrics."
+        "Explain supplied financial information and clearly label unavailable "
+        "data, assumptions, estimates, and regulated-advice boundaries."
     ),
     "security": (
         "You are in SECURITY AWARENESS MODE. "
-        "Review patterns that may indicate operational risk, instability, "
-        "or unusual system behavior."
+        "Review supplied evidence for potential risk. Do not claim that a system "
+        "is secure or anomaly-free without appropriate verified telemetry."
     ),
     "advisor": (
         "You are in ADVISOR MODE. "
@@ -43,7 +43,7 @@ OPERATING_MODES: dict[str, str] = {
 DEFAULT_MODE: str = "operations"
 
 # ---------------------------------------------------------------------------
-# Ecosystem components (used for status placeholders)
+# Optional ecosystem targets. The CLI has no health probes for these names.
 # ---------------------------------------------------------------------------
 ECOSYSTEM_COMPONENTS: list[str] = [
     "QuranChain™ — Blockchain Infrastructure",
@@ -64,20 +64,20 @@ ECOSYSTEM_COMPONENTS: list[str] = [
 # ---------------------------------------------------------------------------
 BANNER: str = """
 ╔══════════════════════════════════════════════════════════╗
-║          OMAR AI — FOUNDER COMMAND CENTER                ║
-║     Strategic Intelligence & Ecosystem Operations       ║
+║              OMAR AI — COMMAND-LINE PROTOTYPE            ║
+║        Evidence-Bounded Planning & Local Status          ║
 ╚══════════════════════════════════════════════════════════╝
 """
 
 HELP_TEXT: str = """
 Available commands:
-  status                        — Quick combined system status dashboard
-  show ecosystem status         — Overview of all ecosystem components
-  show infrastructure health    — Node and server health summary
-  show network performance      — Latency, throughput, uptime metrics
-  show service adoption metrics — Usage and membership activity
-  generate operational report   — Full operational status report
-  generate strategic analysis   — Long-term strategic recommendations
+  status                        — Measured local metrics + unverified external states
+  show ecosystem status         — External component verification availability
+  show infrastructure health    — Measured local runtime snapshot only
+  show network performance      — Network telemetry availability (no estimates)
+  show service adoption metrics — Analytics-source availability (no estimates)
+  generate operational report   — Evidence-bounded verification report
+  generate strategic analysis   — Data-limited planning recommendations
   switch mode <mode>            — Change operating mode
                                   Modes: strategy | operations | financial |
                                          security | advisor

@@ -71,6 +71,20 @@ class TestSystemPromptFile(unittest.TestCase):
         content = self.prompt_path.read_text(encoding="utf-8")
         self.assertIn("Omar Mohammad Abunadi", content)
 
+    def test_contains_action_verification_contract(self):
+        content = self.prompt_path.read_text(encoding="utf-8")
+        self.assertIn("ASK → PLAN → APPROVE WHEN REQUIRED → ACT → VERIFY → REPORT", content)
+        self.assertIn("PREPARED", content)
+        self.assertIn("SUBMITTED", content)
+        self.assertIn("COMPLETED", content)
+        self.assertIn("authoritative provider", content)
+
+    def test_documents_cli_capability_boundary(self):
+        content = self.prompt_path.read_text(encoding="utf-8")
+        self.assertIn("No external action tools", content)
+        self.assertIn("cannot publish to Google Play", content)
+        self.assertIn("CONFIGURED — NOT VERIFIED", content)
+
 
 class TestOmarAIOfflineMode(unittest.TestCase):
     """Test OmarAI behaviour when no API key is set (offline mode)."""
@@ -103,38 +117,53 @@ class TestOmarAIOfflineMode(unittest.TestCase):
         ai = self._make_ai()
         response = ai.chat("show ecosystem status")
         self.assertIn("ECOSYSTEM STATUS", response)
-        self.assertIn("OPERATIONAL", response)
+        self.assertIn("UNKNOWN", response)
+        self.assertIn("NOT VERIFIED", response)
+        self.assertNotIn("ALL SYSTEMS OPERATIONAL", response)
 
     def test_offline_infrastructure_health(self):
         ai = self._make_ai()
         response = ai.chat("show infrastructure health")
-        self.assertIn("INFRASTRUCTURE HEALTH", response)
-        self.assertIn("HEALTHY", response)
+        self.assertIn("INFRASTRUCTURE OBSERVATION", response)
+        self.assertIn("current CLI runtime", response)
+        self.assertIn("Health assessment: UNKNOWN", response)
+        self.assertNotIn("Status: HEALTHY", response)
 
     def test_offline_network_performance(self):
         ai = self._make_ai()
         response = ai.chat("show network performance")
         self.assertIn("NETWORK PERFORMANCE", response)
+        self.assertIn("Transaction throughput : UNKNOWN", response)
+        self.assertIn("no blockchain", response)
+        self.assertNotIn("4,200", response)
 
     def test_offline_service_adoption(self):
         ai = self._make_ai()
         response = ai.chat("show service adoption metrics")
         self.assertIn("SERVICE ADOPTION", response)
+        self.assertIn("Active members       : UNKNOWN", response)
+        self.assertIn("no analytics", response)
+        self.assertNotIn("14,300", response)
 
     def test_offline_operational_report(self):
         ai = self._make_ai()
         response = ai.chat("generate operational report")
-        self.assertIn("OPERATIONAL REPORT", response)
+        self.assertIn("OPERATIONAL VERIFICATION REPORT", response)
+        self.assertIn("State: UNKNOWN", response)
+        self.assertIn("No external action was attempted or completed", response)
 
     def test_offline_strategic_analysis(self):
         ai = self._make_ai()
         response = ai.chat("generate strategic analysis")
         self.assertIn("STRATEGIC ANALYSIS", response)
+        self.assertIn("PREPARED", response)
+        self.assertIn("nothing was submitted or completed", response)
 
     def test_offline_unknown_command(self):
         ai = self._make_ai()
         response = ai.chat("something completely unknown")
-        self.assertIn("OFFLINE MODE", response)
+        self.assertIn("AI PROVIDER DISCONNECTED", response)
+        self.assertIn("cannot execute or verify external actions", response)
 
     def test_history_accumulates(self):
         ai = self._make_ai()
@@ -183,10 +212,26 @@ class TestOmarAIOnlineMode(unittest.TestCase):
         self.assertTrue(any("Expansion recommendation text." in m["content"]
                             for m in assistant_msgs))
 
+    def test_api_receives_verification_first_system_directive(self):
+        ai, mock_client = self._make_ai_with_mock_client("Prepared response.")
+        ai.chat("Publish this application")
+        messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
+        system_message = messages[0]["content"]
+        self.assertIn("No external action tools", system_message)
+        self.assertIn("Never report success beyond the evidence", system_message)
+        self.assertIn("ASK → PLAN → APPROVE WHEN REQUIRED → ACT → VERIFY → REPORT", system_message)
+
+    def test_status_query_never_uses_language_model_as_telemetry(self):
+        ai, mock_client = self._make_ai_with_mock_client("Everything is live.")
+        response = ai.chat("show ecosystem status")
+        self.assertIn("UNKNOWN", response)
+        self.assertIn("no external component telemetry", response)
+        mock_client.chat.completions.create.assert_not_called()
+
     def test_api_error_returns_error_string(self):
         ai, mock_client = self._make_ai_with_mock_client("")
         mock_client.chat.completions.create.side_effect = RuntimeError("timeout")
-        response = ai.chat("show ecosystem status")
+        response = ai.chat("prepare a customer follow-up draft")
         self.assertIn("OMAR AI ERROR", response)
         self.assertIn("timeout", response)
 
@@ -210,7 +255,8 @@ class TestHandleBuiltIn(unittest.TestCase):
         result = self.app._handle_built_in(self.ai, "status")
         self.assertIsNotNone(result)
         self.assertIn("SYSTEM STATUS", result)
-        self.assertIn("OPERATIONAL", result)
+        self.assertIn("External Status: UNKNOWN", result)
+        self.assertNotIn("ALL SYSTEMS OPERATIONAL", result)
 
     def test_switch_mode_command(self):
         result = self.app._handle_built_in(self.ai, "switch mode strategy")
@@ -263,26 +309,31 @@ class TestStatusCommand(unittest.TestCase):
         for component in config.ECOSYSTEM_COMPONENTS:
             self.assertIn(component, result)
 
-    def test_status_summary_shows_operational(self):
+    def test_status_summary_does_not_invent_operational_state(self):
         import app
         importlib.reload(app)
         ai = self._make_ai()
         result = ai.status_summary()
-        self.assertIn("ALL SYSTEMS OPERATIONAL", result)
+        self.assertIn("External Status: UNKNOWN", result)
+        self.assertIn("production state not verified", result)
+        self.assertNotIn("ALL SYSTEMS OPERATIONAL", result)
 
-    def test_status_summary_shows_offline_when_no_client(self):
+    def test_status_summary_shows_disconnected_when_no_client(self):
         import app
         importlib.reload(app)
         ai = self._make_ai(connected=False)
         result = ai.status_summary()
-        self.assertIn("OFFLINE", result)
+        self.assertIn("DISCONNECTED", result)
+        self.assertIn("OPENAI_API_KEY is not configured", result)
 
-    def test_status_summary_shows_connected_when_client_set(self):
+    def test_status_summary_does_not_claim_connected_from_client_object(self):
         import app
         importlib.reload(app)
         ai = self._make_ai(connected=True)
         result = ai.status_summary()
-        self.assertIn("CONNECTED", result)
+        self.assertIn("CONFIGURED", result)
+        self.assertIn("not verified", result)
+        self.assertNotIn("AI Provider    : CONNECTED", result)
 
     def test_status_reflects_switched_mode(self):
         import app
@@ -317,12 +368,13 @@ class TestStatusCommand(unittest.TestCase):
         self.assertIn("`status`", content)
 
     def test_status_shows_live_metrics_section(self):
-        """When psutil is available the output must include the live metrics header."""
+        """The output must identify local metrics as measured and scope-limited."""
         import app
         importlib.reload(app)
         ai = self._make_ai()
         result = ai.status_summary()
-        self.assertIn("INFRASTRUCTURE METRICS (Live)", result)
+        self.assertIn("LOCAL RUNTIME METRICS (MEASURED)", result)
+        self.assertIn("current CLI runtime only", result)
 
     def test_status_shows_snapshot_timestamp(self):
         """A UTC timestamp line must appear in the output."""
@@ -331,6 +383,72 @@ class TestStatusCommand(unittest.TestCase):
         ai = self._make_ai()
         result = ai.status_summary()
         self.assertIn("UTC", result)
+
+
+class TestTruthfulnessContract(unittest.TestCase):
+    """Regression tests for previously fabricated CLI status claims."""
+
+    FORBIDDEN_CLAIMS = (
+        "ALL SYSTEMS OPERATIONAL",
+        "All systems nominal",
+        "Status: HEALTHY",
+        "No anomalies detected",
+        "4,200 TPS",
+        "14,300",
+        "Growth trend: POSITIVE",
+        "All nodes operational",
+        "No outages recorded",
+        "Membership growth +6%",
+        "processing running normally",
+    )
+
+    def _make_offline_ai(self):
+        import app
+        importlib.reload(app)
+        ai = app.OmarAI()
+        ai._client = None
+        return ai
+
+    def test_built_in_reports_contain_no_known_fabricated_claims(self):
+        ai = self._make_offline_ai()
+        outputs = [
+            ai.status_summary(),
+            ai.chat("show ecosystem status"),
+            ai.chat("show infrastructure health"),
+            ai.chat("show network performance"),
+            ai.chat("show service adoption metrics"),
+            ai.chat("generate operational report"),
+            ai.chat("generate strategic analysis"),
+        ]
+        combined = "\n".join(outputs)
+        for claim in self.FORBIDDEN_CLAIMS:
+            self.assertNotIn(claim, combined)
+
+    def test_unknown_external_metrics_include_evidence(self):
+        ai = self._make_offline_ai()
+        for command in (
+            "show ecosystem status",
+            "show network performance",
+            "show service adoption metrics",
+            "generate operational report",
+        ):
+            with self.subTest(command=command):
+                response = ai.chat(command)
+                self.assertIn("UNKNOWN", response)
+                self.assertIn("Evidence", response)
+
+    def test_client_configuration_is_not_reported_as_connection(self):
+        ai = self._make_offline_ai()
+        ai._client = MagicMock()
+        response = ai.status_summary()
+        self.assertIn("CONFIGURED", response)
+        self.assertIn("not verified", response)
+        self.assertNotIn("AI Provider    : CONNECTED", response)
+
+    def test_source_has_no_previous_static_production_numbers(self):
+        source = (ROOT / "app.py").read_text(encoding="utf-8")
+        for literal in ("4,200", "14,300", "1,140", "8,712", "99.9 %"):
+            self.assertNotIn(literal, source)
 
 
 class TestLiveData(unittest.TestCase):
@@ -375,6 +493,7 @@ class TestLiveData(unittest.TestCase):
             result = ld.collect()
         expected_keys = {
             "timestamp", "psutil_available",
+            "measurement_scope", "measurement_source", "collection_errors",
             "uptime_str", "cpu_percent", "cpu_count",
             "memory_percent", "memory_used_gb", "memory_total_gb",
             "disk_percent", "disk_used_gb", "disk_total_gb",
@@ -424,6 +543,32 @@ class TestLiveData(unittest.TestCase):
         self.assertEqual(result["net_bytes_sent"], 1_000_000)
         self.assertEqual(result["net_bytes_recv"], 5_000_000)
         self.assertEqual(result["process_count"], 5)
+        self.assertEqual(result["collection_errors"], {})
+
+    def test_individual_collection_failure_remains_unknown_with_evidence(self):
+        import live_data as ld
+        mock_ps = MagicMock()
+        mock_ps.cpu_percent.side_effect = PermissionError("blocked")
+        mock_ps.virtual_memory.return_value = types.SimpleNamespace(
+            percent=50.0, used=1, total=2
+        )
+        mock_ps.disk_usage.return_value = types.SimpleNamespace(
+            percent=25.0, used=1, total=4
+        )
+        mock_ps.boot_time.return_value = 0.0
+        mock_ps.net_io_counters.return_value = types.SimpleNamespace(
+            bytes_sent=1, bytes_recv=2
+        )
+        mock_ps.pids.return_value = []
+
+        with patch.object(ld, "_psutil", mock_ps), \
+             patch.object(ld, "_PSUTIL_AVAILABLE", True):
+            result = ld.collect()
+
+        self.assertIsNone(result["cpu_percent"])
+        self.assertIsNone(result["cpu_count"])
+        self.assertIn("cpu", result["collection_errors"])
+        self.assertIn("PermissionError", result["collection_errors"]["cpu"])
 
     @patch("time.time")
     def test_collect_uptime_format_days(self, mock_time):
@@ -503,7 +648,7 @@ class TestLiveData(unittest.TestCase):
             result = ai.status_summary()
 
         self.assertIn("77.7", result)
-        self.assertIn("8 cores", result)
+        self.assertIn("8 logical CPUs", result)
 
 
 if __name__ == "__main__":

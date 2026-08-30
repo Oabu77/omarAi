@@ -1,0 +1,3 @@
+<en-US>
+Initial closed-test foundation with on-device customer, lead, job, and invoice records; record-based dashboard summaries; local request routing and exact disconnected task states; contextual speech, camera, photo, and file controls; and local JSON export/deletion. External AI responses and paid subscriptions are not connected in this build.
+</en-US>
