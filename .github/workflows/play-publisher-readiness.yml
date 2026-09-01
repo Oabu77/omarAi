@@ -60,3 +60,5 @@ jobs:
           name: google-play-publisher-readiness
           path: readiness.json
           retention-days: 1
+
+# Readiness probe requested for Omar AI submission on 2026-09-01.
