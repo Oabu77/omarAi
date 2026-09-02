@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   readiness:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Check configured publisher credentials without revealing values
         env:
@@ -53,6 +53,7 @@ jobs:
           done
           printf '  },\n  "publisher_credentials_present": %s\n}\n' "$found" >> readiness.json
           echo "publisher_credentials_present=$found" >> "$GITHUB_STEP_SUMMARY"
+          cat readiness.json
 
       - name: Upload readiness result
         uses: actions/upload-artifact@v4
@@ -61,4 +62,4 @@ jobs:
           path: readiness.json
           retention-days: 1
 
-# Readiness probe requested for Omar AI submission on 2026-09-01.
+# Fresh Ubuntu 22.04 runner route requested for Omar AI submission on 2026-09-01.
