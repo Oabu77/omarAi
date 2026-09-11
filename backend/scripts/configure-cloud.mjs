@@ -1,10 +1,15 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 
 const account = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
 const token = process.env.CLOUDFLARE_API_TOKEN?.trim();
-if (!account || !/^[a-f0-9]{32}$/i.test(account) || !token) {
-  throw new Error('Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN securely before cloud deployment.');
+const apiKey = process.env.CLOUDFLARE_API_KEY?.trim();
+const email = process.env.CLOUDFLARE_EMAIL?.trim();
+if (!account || !/^[a-f0-9]{32}$/i.test(account) || (!token && !(apiKey && email))) {
+  throw new Error('Set CLOUDFLARE_ACCOUNT_ID and either CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_KEY plus CLOUDFLARE_EMAIL securely before cloud deployment.');
 }
+const authenticationHeaders = token
+  ? { Authorization: `Bearer ${token}` }
+  : { 'X-Auth-Key': apiKey, 'X-Auth-Email': email };
 
 const workerName = 'omar-ai-api';
 const project = 'banded-splicer-467704-c5';
@@ -14,7 +19,7 @@ const root = `https://api.cloudflare.com/client/v4/accounts/${account}`;
 async function api(path, { method = 'GET', body, optional = false } = {}) {
   const response = await fetch(`${root}${path}`, {
     method,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { ...authenticationHeaders, 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
     signal: AbortSignal.timeout(30_000),
   });
@@ -39,6 +44,12 @@ if (unsupported.length) {
   throw new Error('Existing Worker has additional resource bindings. Review and preserve them before deployment.');
 }
 const previousVars = Object.fromEntries(bindings.filter(b => b.type === 'plain_text').map(b => [b.name, b.text]));
+if (previousVars.AI_READINESS_EVIDENCE_TTL_SECONDS) {
+  const healthSource = await readFile(new URL('../src/routes/health.ts', import.meta.url), 'utf8');
+  if (!healthSource.includes('/internal/readiness/ai')) {
+    throw new Error('The deployed Worker includes newer protected AI-readiness checks. Reconcile that deployed hotfix into this source before replacing the live Worker.');
+  }
+}
 const authVars = {
   JWT_ISSUER: `https://securetoken.google.com/${project}`,
   JWT_AUDIENCE: project,
