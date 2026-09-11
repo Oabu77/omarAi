@@ -140,8 +140,9 @@ class OmarAI:
                 temperature=config.TEMPERATURE,
             )
             return completion.choices[0].message.content or ""
-        except Exception as exc:  # noqa: BLE001
-            return f"[OMAR AI ERROR] API call failed: {exc}"
+        except Exception:  # noqa: BLE001
+            # Do not reflect provider/SDK exception details into user-visible output.
+            return "[OMAR AI ERROR] API call failed: provider timeout or service error. Please retry."
 
     @staticmethod
     def _offline_response(user_input: str) -> str:
