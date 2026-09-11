@@ -39,21 +39,15 @@ jobs:
             SUPPLY_JSON_KEY_DATA
           )
           found=false
-          printf '{\n  "credentials": {\n' > readiness.json
-          for i in "${!names[@]}"; do
-            name="${names[$i]}"
-            present=false
+          for name in "${names[@]}"; do
             if [ -n "${!name:-}" ]; then
-              present=true
               found=true
+              break
             fi
-            comma=','
-            if [ "$i" -eq "$((${#names[@]} - 1))" ]; then comma=''; fi
-            printf '    "%s": %s%s\n' "$name" "$present" "$comma" >> readiness.json
           done
-          printf '  },\n  "publisher_credentials_present": %s\n}\n' "$found" >> readiness.json
+          printf '{\n  "publisher_credentials_present": %s\n}\n' "$found" > readiness.json
           echo "publisher_credentials_present=$found" >> "$GITHUB_STEP_SUMMARY"
-          cat readiness.json
+          echo "Publisher readiness check completed; credential values and alias-level presence are not emitted."
 
       - name: Upload readiness result
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
