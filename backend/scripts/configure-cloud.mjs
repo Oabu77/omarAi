@@ -2,14 +2,10 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 const account = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
 const token = process.env.CLOUDFLARE_API_TOKEN?.trim();
-const apiKey = process.env.CLOUDFLARE_API_KEY?.trim();
-const email = process.env.CLOUDFLARE_EMAIL?.trim();
-if (!account || !/^[a-f0-9]{32}$/i.test(account) || (!token && !(apiKey && email))) {
-  throw new Error('Set CLOUDFLARE_ACCOUNT_ID and either CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_KEY plus CLOUDFLARE_EMAIL securely before cloud deployment.');
+if (!account || !/^[a-f0-9]{32}$/i.test(account) || !token) {
+  throw new Error('Set CLOUDFLARE_ACCOUNT_ID and a scoped CLOUDFLARE_API_TOKEN securely before cloud deployment. Global API keys are intentionally unsupported.');
 }
-const authenticationHeaders = token
-  ? { Authorization: `Bearer ${token}` }
-  : { 'X-Auth-Key': apiKey, 'X-Auth-Email': email };
+const authenticationHeaders = { Authorization: `Bearer ${token}` };
 
 const workerName = 'omar-ai-api';
 const project = 'banded-splicer-467704-c5';
