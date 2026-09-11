@@ -16,21 +16,16 @@ jobs:
     steps:
       - name: Check scoped cloud deployment credentials without exposing values
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID || vars.CF_ACCOUNT_ID }}
+          CLOUD_DEPLOYMENT_READY: ${{ ((secrets.CLOUDFLARE_API_TOKEN != '' || secrets.CF_API_TOKEN != '') && (secrets.CLOUDFLARE_ACCOUNT_ID != '' || vars.CLOUDFLARE_ACCOUNT_ID != '' || secrets.CF_ACCOUNT_ID != '' || vars.CF_ACCOUNT_ID != '')) && 'true' || 'false' }}
+        shell: bash
         run: |
-          python3 - <<'PY'
-          import os
-          token = bool(os.environ.get('CLOUDFLARE_API_TOKEN') or os.environ.get('CF_API_TOKEN'))
-          account = bool(os.environ.get('CLOUDFLARE_ACCOUNT_ID') or os.environ.get('CF_ACCOUNT_ID'))
-          if not token or not account:
-              raise SystemExit('Cloud deployment is blocked: required scoped deployment credentials are incomplete. Global API keys are intentionally unsupported. No deployment was attempted.')
-          print('Scoped cloud deployment credentials are configured; no credential values or per-component presence metadata are emitted.')
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write('Omar AI cloud access: scoped deployment credentials configured.\n')
-          PY
+          set -euo pipefail
+          if [[ "$CLOUD_DEPLOYMENT_READY" != "true" ]]; then
+            echo "Cloud deployment is blocked: required scoped deployment credentials are incomplete. Global API keys are intentionally unsupported. No deployment was attempted."
+            exit 1
+          fi
+          echo "Scoped cloud deployment credentials are configured; no credential values or per-component presence metadata are emitted."
+          echo "Omar AI cloud access: scoped deployment credentials configured." >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     if: github.event_name == 'workflow_dispatch'
