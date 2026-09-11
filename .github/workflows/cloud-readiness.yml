@@ -14,11 +14,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
-      - name: Check cloud deployment credentials without exposing values
+      - name: Check scoped cloud deployment credentials without exposing values
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID || vars.CF_ACCOUNT_ID }}
@@ -26,14 +24,13 @@ jobs:
           python3 - <<'PY'
           import json, os
           token = bool(os.environ.get('CLOUDFLARE_API_TOKEN') or os.environ.get('CF_API_TOKEN'))
-          global_key = bool(os.environ.get('CLOUDFLARE_API_KEY') and os.environ.get('CLOUDFLARE_EMAIL'))
           account = bool(os.environ.get('CLOUDFLARE_ACCOUNT_ID') or os.environ.get('CF_ACCOUNT_ID'))
-          result = {'cloudflare_token_configured': token, 'cloudflare_global_key_configured': global_key, 'cloudflare_account_configured': account}
+          result = {'cloudflare_scoped_token_configured': token, 'cloudflare_account_configured': account}
           print(json.dumps(result))
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
               summary.write('Omar AI cloud access: ' + json.dumps(result) + '\n')
-          if not (token or global_key) or not account:
-              raise SystemExit('Cloud deployment is blocked: configure Cloudflare deployment credentials in GitHub Actions secrets. No deployment was attempted.')
+          if not token or not account:
+              raise SystemExit('Cloud deployment is blocked: configure a scoped Cloudflare API token and account ID in GitHub Actions secrets/variables. Global API keys are intentionally unsupported. No deployment was attempted.')
           PY
 
   deploy:
@@ -49,8 +46,6 @@ jobs:
         working-directory: backend
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
-      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
-      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID || secrets.CF_ACCOUNT_ID || vars.CF_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
