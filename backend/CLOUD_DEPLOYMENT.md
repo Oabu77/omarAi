@@ -12,28 +12,28 @@ The signed Android 0.3.6 / code 9 manifest names `https://omar-ai-api.darcloud.h
 - Vercel `omar-ai-max.vercel.app` serves a control-plane profile; this does not prove working cloud chat.
 - The API domain returned Cloudflare HTTP 403 / error 1010 from the verification environment.
 - Cloudflare's dashboard blocked the current cloud-browser session at security verification.
-- The existing Global API Key was located in the owner's private credential document and authenticated successfully. No credential values were added to this repository or workflow logs.
+- An existing Cloudflare Global API Key was used previously for owner-authorized inspection only. It is intentionally **not supported by the deployment workflow** because a long-lived account-wide credential creates unnecessary CI/CD blast radius.
 - The production Worker `omar-ai-api` is already deployed at the Android API hostname, with D1 database `omar-ai`, Workers AI, and the expected Firebase project. A direct authenticated D1 read succeeded.
 - The active Worker version is `c90fd764-9921-4670-a9fc-c141d8d802be`, deployed September 2, 2026. Its configured model is `@cf/zai-org/glm-5.3-flash`.
 - A direct authenticated Workers AI request to that model returned HTTP 200 and the requested `READY` reply (110 total tokens). This verifies provider inference; signed-in Android chat and the public API still need verification after resolving the access block.
-- Fixture checks passed for token and Global API Key authentication, credential omission, reuse of the bound database, and stopping before mutations when newer readiness checks or unexpected bindings are present. Workflow YAML validation passed, including the manual deployment gate.
+- Token-only fixture checks passed for credential omission, reuse of the bound database, and stopping before mutations when newer readiness checks or unexpected bindings are present. Workflow YAML validation passed, including the manual deployment gate.
 - The live Worker contains newer protected AI-readiness checks than this source branch. The configuration script stops before resource changes when it detects that known mismatch. Reconcile the deployed hotfix before replacing production code.
 - Browser Integrity Check is enabled. A proposed exception for only `omar-ai-api.darcloud.host` paths `/v1/*` and `/health/live` was blocked by automatic approval review because it changes a production security control. The rule was not applied. Explicit approval is needed for that exact scope; application authentication and rate limits would remain enabled.
-- GitHub cloud-readiness run `34619097069` found no token or account ID in that workflow's environment. That check did not cover the existing private Global API Key. No new cloud deployment or security-setting change was made in this work.
+- GitHub cloud-readiness run `34619097069` found no scoped token or account ID in that workflow's environment. No new cloud deployment or security-setting change was made in that work.
 
 ## Secure configuration
 
-Supply `CLOUDFLARE_ACCOUNT_ID` and either `CLOUDFLARE_API_TOKEN` or the existing Global API Key as `CLOUDFLARE_API_KEY` together with `CLOUDFLARE_EMAIL`. For GitHub Actions, these must be available in this repository's Actions secrets; the account ID can instead be an Actions variable. The private credential was used directly for verification and was not copied to Actions secrets. Never put credentials in chat, source code, Android build settings, or a workflow input.
+Supply `CLOUDFLARE_ACCOUNT_ID` and a **scoped** `CLOUDFLARE_API_TOKEN` (or the equivalent `CF_API_TOKEN` alias) through GitHub Actions secrets/variables. The account ID can be an Actions variable. The deployment workflow deliberately rejects Cloudflare Global API Key authentication; do not copy a Global API Key or account email into Actions secrets for this deployment.
 
-Both token authentication and the existing Global API Key with its account email are supported. Credentials must access the intended Cloudflare account and the `darcloud.host` zone, with the permissions needed to deploy Workers, bind Workers AI, manage the Omar AI D1 database, and attach the Worker custom domain. No credential rotation or paid plan upgrade is performed by this workflow; normal usage limits and any existing account billing still apply.
+The scoped token should have only the permissions needed for the Omar AI Worker, Workers AI binding, the `omar-ai` D1 database, and the required custom-domain operation. Prefer narrowing the token to the intended Cloudflare account/zone and rotate/revoke it independently of unrelated account credentials. Never put credentials in chat, source code, Android build settings, workflow inputs, or generated configuration files.
 
-Push-triggered runs of **Omar AI cloud readiness** check credential availability only. Deployment requires a manual `workflow_dispatch` run after reconciling the newer production source and making the workflow available on the repository's default branch. A manual run installs locked dependencies, runs backend tests, inspects existing Worker bindings, reuses its bound D1 database (or creates the named `omar-ai` database when none exists), applies additive migrations, and deploys the API to the existing Android hostname.
+Push-triggered runs of **Omar AI cloud readiness** check scoped-token availability only. Deployment requires a manual `workflow_dispatch` run after reconciling the newer production source and making the workflow available on the repository's default branch. A manual run installs locked dependencies, runs backend tests, inspects existing Worker bindings, reuses its bound D1 database (or creates the named `omar-ai` database when none exists), applies additive migrations, and deploys the API to the existing Android hostname.
 
 The deployment stops rather than silently discarding unexpected resource bindings or replacing a different Firebase configuration. Existing Worker secrets are retained. Before rerunning against an existing production service, review the current version and database recovery point in Cloudflare; Worker code rollback does not undo database migrations.
 
 ## Local invocation of the same cloud deployment
 
-After reconciling the deployed source, with the chosen authentication variables securely supplied, from `backend/`:
+After reconciling the deployed source, with the scoped token and account ID securely supplied, from `backend/`:
 
 ```sh
 npm ci
