@@ -22,15 +22,14 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID || vars.CF_ACCOUNT_ID }}
         run: |
           python3 - <<'PY'
-          import json, os
+          import os
           token = bool(os.environ.get('CLOUDFLARE_API_TOKEN') or os.environ.get('CF_API_TOKEN'))
           account = bool(os.environ.get('CLOUDFLARE_ACCOUNT_ID') or os.environ.get('CF_ACCOUNT_ID'))
-          result = {'cloudflare_scoped_token_configured': token, 'cloudflare_account_configured': account}
-          print(json.dumps(result))
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write('Omar AI cloud access: ' + json.dumps(result) + '\n')
           if not token or not account:
-              raise SystemExit('Cloud deployment is blocked: configure a scoped Cloudflare API token and account ID in GitHub Actions secrets/variables. Global API keys are intentionally unsupported. No deployment was attempted.')
+              raise SystemExit('Cloud deployment is blocked: required scoped deployment credentials are incomplete. Global API keys are intentionally unsupported. No deployment was attempted.')
+          print('Scoped cloud deployment credentials are configured; no credential values or per-component presence metadata are emitted.')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('Omar AI cloud access: scoped deployment credentials configured.\n')
           PY
 
   deploy:
