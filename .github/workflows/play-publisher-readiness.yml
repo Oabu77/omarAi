@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - .github/workflows/play-publisher-readiness.yml
+      - test_security_play_workflow_boundary.py
   workflow_dispatch:
 
 permissions:
@@ -12,42 +13,26 @@ permissions:
 jobs:
   readiness:
     runs-on: ubuntu-22.04
+    env:
+      # Non-secret operator assertion only. Publisher credential material is intentionally
+      # never injected into this workflow; real publishing must use a separately protected
+      # environment or short-lived workload identity.
+      PLAY_PUBLISHER_IDENTITY_READY: ${{ vars.PLAY_PUBLISHER_IDENTITY_READY == 'true' && 'true' || 'false' }}
     steps:
-      - name: Check configured publisher credentials without revealing values
-        env:
-          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.ANDROID_PUBLISHER_CREDENTIALS }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-          GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
-          PLAY_STORE_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
-          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
-          SUPPLY_JSON_KEY_DATA: ${{ secrets.SUPPLY_JSON_KEY_DATA }}
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Enforce secret-free publisher-readiness boundary
+        run: python -m unittest -v test_security_play_workflow_boundary.py
+
+      - name: Record provider-free readiness state
         shell: bash
         run: |
           set -euo pipefail
-          names=(
-            GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
-            PLAY_SERVICE_ACCOUNT_JSON
-            ANDROID_PUBLISHER_CREDENTIALS
-            GOOGLE_SERVICE_ACCOUNT_JSON
-            SERVICE_ACCOUNT_JSON
-            GOOGLE_PLAY_SERVICE_ACCOUNT
-            PLAY_STORE_SERVICE_ACCOUNT_JSON
-            GCP_SERVICE_ACCOUNT_KEY
-            SUPPLY_JSON_KEY_DATA
-          )
-          found=false
-          for name in "${names[@]}"; do
-            if [ -n "${!name:-}" ]; then
-              found=true
-              break
-            fi
-          done
-          printf '{\n  "publisher_credentials_present": %s\n}\n' "$found" > readiness.json
-          echo "publisher_credentials_present=$found" >> "$GITHUB_STEP_SUMMARY"
-          echo "Publisher readiness check completed; credential values and alias-level presence are not emitted."
+          printf '{\n  "credential_material_inspected": false,\n  "operator_asserted_identity_ready": %s,\n  "publishing_requires_protected_identity_gate": true\n}\n' "$PLAY_PUBLISHER_IDENTITY_READY" > readiness.json
+          echo "credential_material_inspected=false" >> "$GITHUB_STEP_SUMMARY"
+          echo "operator_asserted_identity_ready=$PLAY_PUBLISHER_IDENTITY_READY" >> "$GITHUB_STEP_SUMMARY"
+          echo "Google Play credential material is intentionally not exposed to this readiness workflow."
 
       - name: Upload readiness result
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -56,4 +41,5 @@ jobs:
           path: readiness.json
           retention-days: 1
 
-# Fresh Ubuntu 22.04 runner route requested for Omar AI submission on 2026-09-01.
+# Publisher credentials must not be read by this workflow. Use a protected GitHub
+# Environment and/or short-lived OIDC/WIF identity for any future publishing action.
