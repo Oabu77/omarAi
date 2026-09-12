@@ -3,6 +3,7 @@ dist/
 .wrangler/
 coverage/
 wrangler.toml
+wrangler.cloud.json
 .dev.vars
 .env*
 !.env.example

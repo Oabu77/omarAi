@@ -18,6 +18,22 @@ export function isValidIdempotencyKey(value: string | undefined): value is strin
   return Boolean(value && /^[A-Za-z0-9._:-]{8,128}$/.test(value));
 }
 
+export async function clearExpiredIdempotencyKey(
+  db: D1Database,
+  userId: string,
+  route: string,
+  key: string,
+  nowIso: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `DELETE FROM idempotency_keys
+       WHERE user_id = ? AND route = ? AND idempotency_key = ? AND expires_at <= ?`,
+    )
+    .bind(userId, route, key, nowIso)
+    .run();
+}
+
 export async function withIdempotency(
   c: Context<AppEnvironment>,
   userId: string,
@@ -36,14 +52,20 @@ export async function withIdempotency(
   }
   const requestHash = await sha256(`${route}\n${bodyText}`);
   const now = new Date();
+  const nowIso = now.toISOString();
   const expires = new Date(now.getTime() + 24 * 60 * 60 * 1_000);
+
+  // D1 does not expire rows automatically. Remove only this caller's exact stale
+  // key before INSERT OR IGNORE so the documented 24-hour reuse window is real.
+  await clearExpiredIdempotencyKey(db, userId, route, key, nowIso);
+
   const inserted = await db
     .prepare(
       `INSERT OR IGNORE INTO idempotency_keys
        (user_id, route, idempotency_key, request_hash, state, created_at, expires_at)
        VALUES (?, ?, ?, ?, 'processing', ?, ?)`,
     )
-    .bind(userId, route, key, requestHash, now.toISOString(), expires.toISOString())
+    .bind(userId, route, key, requestHash, nowIso, expires.toISOString())
     .run();
 
   if ((inserted.meta.changes ?? 0) === 0) {

@@ -192,7 +192,6 @@ export function registerHealthRoutes(app: Hono<AppEnvironment>): void {
       status: coreReady ? "READY" : "DEGRADED",
       checkedAt: new Date().toISOString(),
       coreReady,
-      integrations,
     };
     return success(c, payload, coreReady ? 200 : 503);
   });

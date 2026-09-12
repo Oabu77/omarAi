@@ -2,40 +2,42 @@ import { describe, expect, it } from "vitest";
 import { app } from "../src/index";
 
 describe("public health boundary", () => {
-  it("returns an explicit degraded state when bindings are absent", async () => {
+  it("returns an explicit degraded state without exposing integration detail when bindings are absent", async () => {
     const response = await app.request("https://api.example.test/v1/health", {}, {});
     expect(response.status).toBe(503);
     const body = await response.json() as {
       data: {
         status: string;
-        integrations: Record<string, { status: string; evidence: string }>;
+        coreReady: boolean;
+        integrations?: unknown;
       };
     };
     expect(body.data.status).toBe("DEGRADED");
-    expect(body.data.integrations.database?.status).toBe("DISCONNECTED");
-    expect(body.data.integrations.aiText?.status).toBe("DISCONNECTED");
-    expect(body.data.integrations.googlePlayBilling?.status).toBe("DISCONNECTED");
+    expect(body.data.coreReady).toBe(false);
+    expect(body.data.integrations).toBeUndefined();
   });
 
-  it("does not call an AI binding connected before request-time inference", async () => {
+  it("does not expose configured AI, provider, or verification metadata on anonymous health", async () => {
     const response = await app.request("https://api.example.test/v1/health", {}, {
       AI: { async run() { return { response: "unused" }; } },
+      MODEL_TEXT: "@cf/example/private-model-id",
       JWT_ISSUER: "https://issuer.example",
       JWT_AUDIENCE: "omar-ai",
       JWKS_URL: "https://issuer.example/jwks.json",
+      PLAY_VERIFIER_URL: "https://billing.example/verify",
+      PLAY_VERIFIER_TOKEN: "test-only-placeholder-token-value",
+      PLAY_PACKAGE_NAME: "com.example.omar",
+      PLAY_ENTITLEMENT_MAP: "{}",
     });
     expect(response.status).toBe(503);
-    const body = await response.json() as {
-      data: { integrations: Record<string, { status: string; configured: boolean; verified: boolean }> };
-    };
-    expect(body.data.integrations.aiText).toMatchObject({
-      status: "PENDING",
-      configured: true,
-      verified: false,
-    });
+    const body = await response.json() as { data: Record<string, unknown> };
+    expect(body.data.integrations).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain("private-model-id");
+    expect(JSON.stringify(body)).not.toContain("billing.example");
+    expect(JSON.stringify(body)).not.toContain("PLAY_VERIFIER");
   });
 
-  it("stays degraded until authenticated and inference evidence exists", async () => {
+  it("stays degraded until authenticated and inference evidence exists without revealing evidence timestamps", async () => {
     const database = {
       prepare(sql: string) {
         return {
@@ -56,15 +58,14 @@ describe("public health boundary", () => {
     });
     expect(response.status).toBe(503);
     const body = await response.json() as {
-      data: { status: string; coreReady: boolean; integrations: Record<string, { status: string }> };
+      data: { status: string; coreReady: boolean; integrations?: unknown };
     };
     expect(body.data.status).toBe("DEGRADED");
     expect(body.data.coreReady).toBe(false);
-    expect(body.data.integrations.authentication?.status).toBe("PENDING");
-    expect(body.data.integrations.aiText?.status).toBe("PENDING");
+    expect(body.data.integrations).toBeUndefined();
   });
 
-  it("is ready after successful authentication and inference are evidenced", async () => {
+  it("reports readiness without exposing authentication or inference evidence", async () => {
     const database = {
       prepare(sql: string) {
         return {
@@ -91,12 +92,15 @@ describe("public health boundary", () => {
     });
     expect(response.status).toBe(200);
     const body = await response.json() as {
-      data: { status: string; coreReady: boolean; integrations: Record<string, { status: string; verified: boolean }> };
+      data: { status: string; coreReady: boolean; integrations?: unknown };
     };
     expect(body.data.status).toBe("READY");
     expect(body.data.coreReady).toBe(true);
-    expect(body.data.integrations.authentication).toMatchObject({ status: "CONNECTED", verified: true });
-    expect(body.data.integrations.aiText).toMatchObject({ status: "CONNECTED", verified: true });
+    expect(body.data.integrations).toBeUndefined();
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toContain("2026-08-30T16:20:00.000Z");
+    expect(serialized).not.toContain("2026-08-30T16:21:00.000Z");
+    expect(serialized).not.toContain("glm-5.2");
   });
 
   it("reports liveness without implying readiness", async () => {

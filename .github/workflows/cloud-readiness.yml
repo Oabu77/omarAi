@@ -1,0 +1,64 @@
+name: Omar AI cloud readiness
+
+on:
+  push:
+    branches: [codex/omar-ai-cloud]
+    paths: [.github/workflows/cloud-readiness.yml, backend/**]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cloud-access:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Check scoped cloud deployment credentials without exposing values
+        env:
+          CLOUD_DEPLOYMENT_READY: ${{ ((secrets.CLOUDFLARE_API_TOKEN != '' || secrets.CF_API_TOKEN != '') && (secrets.CLOUDFLARE_ACCOUNT_ID != '' || vars.CLOUDFLARE_ACCOUNT_ID != '' || secrets.CF_ACCOUNT_ID != '' || vars.CF_ACCOUNT_ID != '')) && 'true' || 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$CLOUD_DEPLOYMENT_READY" != "true" ]]; then
+            echo "Cloud deployment is blocked: required scoped deployment credentials are incomplete. Global API keys are intentionally unsupported. No deployment was attempted."
+            exit 1
+          fi
+          echo "Scoped cloud deployment credentials are configured; no credential values or per-component presence metadata are emitted."
+          echo "Omar AI cloud access: scoped deployment credentials configured." >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    needs: cloud-access
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    concurrency:
+      group: omar-ai-cloud-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID || secrets.CF_ACCOUNT_ID || vars.CF_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - name: Inspect cloud bindings and configure the production API
+        run: node scripts/configure-cloud.mjs
+      - name: Bundle before publishing
+        run: npx --no-install wrangler deploy --config wrangler.cloud.json --dry-run
+      - name: Apply additive cloud database migrations
+        run: npx --no-install wrangler d1 migrations apply DB --remote --config wrangler.cloud.json
+      - name: Deploy the existing Android API origin
+        run: npx --no-install wrangler deploy --config wrangler.cloud.json --keep-vars
+      - name: Verify the public API and cloud database
+        env:
+          OMAR_SMOKE_ID_TOKEN: ${{ secrets.OMAR_SMOKE_ID_TOKEN }}
+        run: node scripts/verify-cloud.mjs
