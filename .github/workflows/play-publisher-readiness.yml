@@ -13,41 +13,21 @@ jobs:
   readiness:
     runs-on: ubuntu-22.04
     steps:
-      - name: Check configured publisher credentials without revealing values
-        env:
-          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.ANDROID_PUBLISHER_CREDENTIALS }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-          GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
-          PLAY_STORE_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
-          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
-          SUPPLY_JSON_KEY_DATA: ${{ secrets.SUPPLY_JSON_KEY_DATA }}
+      - name: Record secret-free publisher readiness state
         shell: bash
         run: |
           set -euo pipefail
-          names=(
-            GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
-            PLAY_SERVICE_ACCOUNT_JSON
-            ANDROID_PUBLISHER_CREDENTIALS
-            GOOGLE_SERVICE_ACCOUNT_JSON
-            SERVICE_ACCOUNT_JSON
-            GOOGLE_PLAY_SERVICE_ACCOUNT
-            PLAY_STORE_SERVICE_ACCOUNT_JSON
-            GCP_SERVICE_ACCOUNT_KEY
-            SUPPLY_JSON_KEY_DATA
-          )
-          found=false
-          for name in "${names[@]}"; do
-            if [ -n "${!name:-}" ]; then
-              found=true
-              break
-            fi
-          done
-          printf '{\n  "publisher_credentials_present": %s\n}\n' "$found" > readiness.json
-          echo "publisher_credentials_present=$found" >> "$GITHUB_STEP_SUMMARY"
-          echo "Publisher readiness check completed; credential values and alias-level presence are not emitted."
+          cat > readiness.json <<'JSON'
+          {
+            "publisher_credentials_present": "not_checked",
+            "reason": "Repository workflows must not receive long-lived Google Play publisher credentials."
+          }
+          JSON
+          {
+            echo "publisher_credentials_present=not_checked"
+            echo "Credential presence is intentionally not inspected from repository secrets."
+            echo "Use a protected deployment environment or short-lived workload identity for any future publisher action."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload readiness result
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -56,4 +36,5 @@ jobs:
           path: readiness.json
           retention-days: 1
 
-# Fresh Ubuntu 22.04 runner route requested for Omar AI submission on 2026-09-01.
+# This workflow is intentionally provider-free and secret-free.
+# Long-lived publisher credentials must not be exposed to branch-push workflow code.
