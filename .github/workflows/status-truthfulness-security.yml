@@ -1,0 +1,29 @@
+name: Status Truthfulness Security
+
+on:
+  push:
+    paths:
+      - app.py
+      - test_security_status_truthfulness.py
+      - .github/workflows/status-truthfulness-security.yml
+  pull_request:
+    paths:
+      - app.py
+      - test_security_status_truthfulness.py
+      - .github/workflows/status-truthfulness-security.yml
+
+permissions:
+  contents: read
+
+jobs:
+  provider-free-regression:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Compile source
+        run: python -m py_compile app.py test_security_status_truthfulness.py
+
+      - name: Verify fail-closed status boundary
+        run: python test_security_status_truthfulness.py
