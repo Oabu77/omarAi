@@ -3,9 +3,19 @@ name: Runner Smoke Test
 on:
   push:
     paths:
+      - app.py
       - .github/workflows/runner-smoke.yml
       - test_security_error_redaction.py
       - test_security_play_publisher_readiness.py
+      - test_security_status_integrity.py
+      - .github/workflows/play-publisher-readiness.yml
+  pull_request:
+    paths:
+      - app.py
+      - .github/workflows/runner-smoke.yml
+      - test_security_error_redaction.py
+      - test_security_play_publisher_readiness.py
+      - test_security_status_integrity.py
       - .github/workflows/play-publisher-readiness.yml
 
 permissions:
@@ -26,3 +36,6 @@ jobs:
 
       - name: Run Play publisher secret-boundary regression
         run: python -m unittest -v test_security_play_publisher_readiness.py
+
+      - name: Run operational status-integrity regression
+        run: python -m unittest -v test_security_status_integrity.py

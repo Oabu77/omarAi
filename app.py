@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import sys
 import textwrap
 from pathlib import Path
@@ -16,9 +15,7 @@ except ImportError:  # pragma: no cover
 import config
 import live_data
 
-# ---------------------------------------------------------------------------
-# Load system prompt from markdown file
-# ---------------------------------------------------------------------------
+
 _PROMPT_FILE = Path(__file__).parent / "system_prompt.md"
 
 
@@ -26,10 +23,6 @@ def _load_system_prompt() -> str:
     """Return the OMAR AI system prompt from *system_prompt.md*."""
     return _PROMPT_FILE.read_text(encoding="utf-8")
 
-
-# ---------------------------------------------------------------------------
-# Chat session
-# ---------------------------------------------------------------------------
 
 class OmarAI:
     """Stateful chat session for the OMAR AI Founder Command Center."""
@@ -42,10 +35,6 @@ class OmarAI:
 
         if openai is not None and config.OPENAI_API_KEY:
             self._client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     @property
     def mode(self) -> str:
@@ -62,7 +51,6 @@ class OmarAI:
 
     def chat(self, user_input: str) -> str:
         """Send *user_input* to OMAR AI and return the response."""
-        # Compose messages for the API call
         mode_directive = config.OPERATING_MODES.get(self._mode, "")
         system_content = f"{self._system_prompt}\n\n{mode_directive}"
 
@@ -73,15 +61,12 @@ class OmarAI:
         ]
 
         if self._client is None:
-            # No API key available — return a helpful offline message
             response_text = self._offline_response(user_input)
         else:
             response_text = self._api_call(messages)
 
-        # Append to history
         self._history.append({"role": "user", "content": user_input})
         self._history.append({"role": "assistant", "content": response_text})
-
         return response_text
 
     def reset_history(self) -> None:
@@ -89,7 +74,7 @@ class OmarAI:
         self._history.clear()
 
     def status_summary(self) -> str:
-        """Return a concise combined status dashboard with real live host metrics."""
+        """Return verified local-host metrics and fail closed on external status."""
         metrics = live_data.collect()
 
         lines = [
@@ -99,13 +84,13 @@ class OmarAI:
             f"  Operating Mode : {self._mode.upper()} MODE",
             f"  AI Backend     : {'CONNECTED' if self._client is not None else 'OFFLINE (no API key)'}",
             "",
-            "ECOSYSTEM COMPONENTS",
+            "ECOSYSTEM COMPONENTS (Authoritative telemetry not queried)",
             "-" * 50,
         ]
         for component in config.ECOSYSTEM_COMPONENTS:
-            lines.append(f"  • {component}: OPERATIONAL")
+            lines.append(f"  • {component}: UNVERIFIED")
 
-        lines += ["", "INFRASTRUCTURE METRICS (Live)", "-" * 50]
+        lines += ["", "LOCAL HOST METRICS (Live)", "-" * 50]
 
         if metrics["psutil_available"]:
             lines += [
@@ -118,17 +103,13 @@ class OmarAI:
                 f"  Active Processes   : {metrics['process_count']}",
             ]
         else:
-            lines.append("  (install psutil for live metrics: pip install psutil)")
+            lines.append("  UNAVAILABLE — install psutil for local-host metrics")
 
         lines += [
             "",
-            "Overall Status: ALL SYSTEMS OPERATIONAL",
+            "Overall Status: UNVERIFIED — no authoritative ecosystem health source was queried.",
         ]
         return "\n".join(lines)
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
     def _api_call(self, messages: list[dict[str, str]]) -> str:
         """Call the OpenAI chat completions endpoint."""
@@ -141,19 +122,22 @@ class OmarAI:
             )
             return completion.choices[0].message.content or ""
         except Exception:  # noqa: BLE001
-            # Do not reflect provider/SDK exception details into user-visible output.
             return "[OMAR AI ERROR] API call failed: provider timeout or service error. Please retry."
 
     @staticmethod
     def _offline_response(user_input: str) -> str:
-        """Return a structured offline placeholder response."""
+        """Return an offline response that never fabricates operational telemetry."""
         cmd = user_input.strip().lower()
 
         if "ecosystem status" in cmd:
-            lines = ["ECOSYSTEM STATUS OVERVIEW", "=" * 40]
+            lines = [
+                "ECOSYSTEM STATUS OVERVIEW",
+                "=" * 40,
+                "Authoritative service telemetry is unavailable in offline mode.",
+            ]
             for component in config.ECOSYSTEM_COMPONENTS:
-                lines.append(f"  • {component}: OPERATIONAL")
-            lines.append("\nAll systems nominal. No critical alerts detected.")
+                lines.append(f"  • {component}: UNVERIFIED")
+            lines.append("\nNo claim about outages, alerts, or anomalies is made without a live telemetry source.")
             return "\n".join(lines)
 
         if "infrastructure health" in cmd:
@@ -162,6 +146,7 @@ class OmarAI:
                 return "\n".join([
                     "INFRASTRUCTURE HEALTH SUMMARY",
                     "=" * 30,
+                    "Scope: LOCAL HOST ONLY",
                     f"  System Uptime    : {m['uptime_str']}",
                     f"  CPU Usage        : {m['cpu_percent']:.1f} %  ({m['cpu_count']} cores)",
                     f"  Memory Usage     : {m['memory_percent']:.1f} %  ({m['memory_used_gb']:.1f} / {m['memory_total_gb']:.1f} GB)",
@@ -170,45 +155,34 @@ class OmarAI:
                     f"  Net Bytes Recv   : {live_data.fmt_bytes(m['net_bytes_recv'])}",
                     f"  Active Processes : {m['process_count']}",
                     "",
-                    f"Status: HEALTHY — Data collected {m['timestamp']}",
+                    f"Snapshot: {m['timestamp']}",
+                    "External infrastructure status: UNVERIFIED",
                 ])
             return textwrap.dedent("""\
                 INFRASTRUCTURE HEALTH SUMMARY
                 ==============================
-                  Node Uptime      : 99.9 %
-                  Avg Latency      : 12 ms
-                  Packet Loss      : 0.01 %
-                  Disk Usage       : 42 %
-                  CPU Load (avg)   : 18 %
-                  Memory Usage     : 61 %
-
-                Status: HEALTHY — No anomalies detected.
+                Local-host metrics: UNAVAILABLE
+                External infrastructure status: UNVERIFIED
+                No latency, uptime, packet-loss, capacity, alert, or anomaly claim
+                can be made without an authoritative telemetry source.
             """)
 
         if "network performance" in cmd:
             return textwrap.dedent("""\
                 NETWORK PERFORMANCE REPORT
                 ===========================
-                  Transaction Throughput : 4,200 TPS
-                  Block Finality         : 1.8 s
-                  Bridge Latency         : 3.4 s
-                  Mesh Node Count        : 1,140
-                  Encrypted Sessions     : 8,712
-
-                Performance within expected parameters.
+                Status: UNVERIFIED
+                No live QuranChain, bridge, mesh, session, latency, finality, or
+                throughput telemetry is connected in offline mode.
             """)
 
         if "service adoption" in cmd:
             return textwrap.dedent("""\
                 SERVICE ADOPTION METRICS
                 =========================
-                  Active Members         : 14,300
-                  New Registrations (7d) : 820
-                  Merchant Accounts      : 560
-                  Halal Card Holders     : 9,100
-                  DarCloud Active Users  : 6,200
-
-                Growth trend: POSITIVE.
+                Status: UNVERIFIED
+                No live member, registration, merchant, cardholder, or active-user
+                analytics source is connected in offline mode.
             """)
 
         if "operational report" in cmd:
@@ -216,54 +190,48 @@ class OmarAI:
                 OPERATIONAL REPORT
                 ===================
                 [Infrastructure]
-                  All nodes operational. No outages recorded.
+                  UNVERIFIED — no authoritative infrastructure health source queried.
 
                 [Network]
-                  Transaction throughput stable at 4,200 TPS.
-                  Mesh network routing nominal.
+                  UNVERIFIED — no live throughput, routing, or availability source queried.
 
                 [Services]
-                  Membership growth +6% week-over-week.
-                  Halal Card processing running normally.
+                  UNVERIFIED — no live adoption, payment, or service-health source queried.
 
                 [Security]
-                  No anomalous patterns detected.
-                  All encrypted communication channels active.
+                  UNVERIFIED — no alert, incident, or anomaly source queried.
 
                 [Recommendations]
-                  • Continue validator node expansion.
-                  • Evaluate cross-chain bridge capacity for Q2 traffic forecast.
-                  • Schedule DarCloud storage tier review.
+                  • Connect authoritative telemetry before making operational claims.
+                  • Keep local-host metrics explicitly scoped to this machine.
+                  • Treat missing telemetry as unknown, not healthy.
 
-                Report generated by OMAR AI Founder Command Center.
+                Report generated by OMAR AI Founder Command Center in offline mode.
             """)
 
         if "strategic analysis" in cmd:
             return textwrap.dedent("""\
                 STRATEGIC ANALYSIS
                 ====================
+                Planning guidance only — current operating conditions are UNVERIFIED.
+
                 [Opportunity 1 — Validator Network Expansion]
-                  Increasing validator node count improves throughput and
-                  decentralization. Recommend targeting 500 new nodes in
-                  strategic geographic regions.
+                  Evaluate validator capacity and geographic coverage after verifying
+                  current utilization, reliability, and decentralization metrics.
 
                 [Opportunity 2 — Dar Al-Nas Merchant Partnerships]
-                  Onboarding halal-certified merchants accelerates Halal Card
-                  adoption and drives transaction fee revenue.
+                  Evaluate merchant onboarding opportunities using verified demand,
+                  compliance, and transaction data.
 
                 [Opportunity 3 — MeshTalk OS Licensing]
-                  License MeshTalk OS infrastructure to Islamic institutions
-                  seeking sovereign communication networks.
+                  Evaluate institutional licensing where security, support, and
+                  deployment requirements are documented.
 
                 [Risk — Centralized Dependency]
-                  Audit all third-party API dependencies and create redundancy
-                  plans for critical infrastructure services.
-
-                Strategic posture: EXPANSION PHASE — Maintain operational
-                discipline while accelerating adoption across all verticals.
+                  Audit third-party dependencies and maintain tested redundancy plans
+                  for critical infrastructure services.
             """)
 
-        # Default — ask user to configure API key for full AI responses
         return (
             "[OMAR AI — OFFLINE MODE]\n"
             "No OPENAI_API_KEY detected. Set the environment variable to enable "
@@ -279,10 +247,6 @@ class OmarAI:
             "  help | exit"
         )
 
-
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
 
 def _handle_built_in(ai: OmarAI, user_input: str) -> Optional[str]:
     """Handle CLI built-in commands. Returns output string or None to pass through."""
@@ -302,7 +266,7 @@ def _handle_built_in(ai: OmarAI, user_input: str) -> Optional[str]:
         mode = stripped[len("switch mode "):].strip()
         return ai.switch_mode(mode)
 
-    return None  # pass through to AI
+    return None
 
 
 def main() -> None:
