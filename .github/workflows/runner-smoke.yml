@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - .github/workflows/runner-smoke.yml
+      - test_security_error_redaction.py
+      - test_security_play_publisher_readiness.py
+      - .github/workflows/play-publisher-readiness.yml
 
 permissions:
   contents: read
@@ -20,3 +23,6 @@ jobs:
 
       - name: Run provider error-redaction security regression
         run: python -m unittest -v test_security_error_redaction.py
+
+      - name: Run Play publisher secret-boundary regression
+        run: python -m unittest -v test_security_play_publisher_readiness.py
