@@ -4,18 +4,28 @@ on:
   push:
     paths:
       - app.py
+      - config.py
+      - live_data.py
+      - requirements.txt
+      - system_prompt.md
       - .github/workflows/runner-smoke.yml
       - test_security_error_redaction.py
       - test_security_play_publisher_readiness.py
       - test_security_status_integrity.py
+      - test_security_ci_path_coverage.py
       - .github/workflows/play-publisher-readiness.yml
   pull_request:
     paths:
       - app.py
+      - config.py
+      - live_data.py
+      - requirements.txt
+      - system_prompt.md
       - .github/workflows/runner-smoke.yml
       - test_security_error_redaction.py
       - test_security_play_publisher_readiness.py
       - test_security_status_integrity.py
+      - test_security_ci_path_coverage.py
       - .github/workflows/play-publisher-readiness.yml
 
 permissions:
@@ -39,3 +49,6 @@ jobs:
 
       - name: Run operational status-integrity regression
         run: python -m unittest -v test_security_status_integrity.py
+
+      - name: Run security smoke path-coverage regression
+        run: python -m unittest -v test_security_ci_path_coverage.py
