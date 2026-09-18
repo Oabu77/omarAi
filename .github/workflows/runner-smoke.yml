@@ -4,6 +4,10 @@ on:
   push:
     paths:
       - app.py
+      - config.py
+      - live_data.py
+      - requirements.txt
+      - system_prompt.md
       - .github/workflows/runner-smoke.yml
       - test_security_error_redaction.py
       - test_security_play_publisher_readiness.py
@@ -12,6 +16,10 @@ on:
   pull_request:
     paths:
       - app.py
+      - config.py
+      - live_data.py
+      - requirements.txt
+      - system_prompt.md
       - .github/workflows/runner-smoke.yml
       - test_security_error_redaction.py
       - test_security_play_publisher_readiness.py
