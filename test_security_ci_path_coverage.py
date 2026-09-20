@@ -1,9 +1,10 @@
 """Provider-free regression for Omar AI security workflow coverage."""
 
 from pathlib import Path
-import json
 import re
 import unittest
+
+import yaml
 
 
 WORKFLOW = Path(".github/workflows/runner-smoke.yml")
@@ -22,100 +23,80 @@ CRITICAL_RUNTIME_PATHS = (
 )
 
 
-_YAML_KEY = r'''(?:"(?:\\.|[^"\\])*"|'(?:''|[^'])*'|[A-Za-z0-9_.-]+)'''
+class UniqueKeyBaseLoader(yaml.BaseLoader):
+    """YAML loader that keeps scalar strings and rejects duplicate mapping keys."""
 
 
-def _decode_yaml_scalar(token: str) -> str:
-    """Resolve the scalar spellings relevant to workflow keys/uses values."""
-    token = token.strip()
-    if len(token) >= 2 and token[0] == token[-1] == '"':
-        # JSON and YAML share the Unicode escape form used by GitHub workflow
-        # keys/values (for example "permi\u0073sions").
-        return json.loads(token)
-    if len(token) >= 2 and token[0] == token[-1] == "'":
-        # YAML single-quoted scalars escape a quote by doubling it.
-        return token[1:-1].replace("''", "'")
-    return token
+def _construct_unique_mapping(loader, node, deep=False):
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in mapping:
+            raise AssertionError(f"duplicate YAML mapping key: {key}")
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
 
 
-def _mapping_entries(text: str) -> list[tuple[str, str, str]]:
-    """Return (indent, resolved key, raw value) for block/list mappings."""
-    entries: list[tuple[str, str, str]] = []
-    pattern = re.compile(
-        rf"^([ \t]*)(?:-\s+)?(?P<key>{_YAML_KEY})\s*:\s*(?P<value>.*)$"
-    )
-    for line in text.splitlines():
-        match = pattern.match(line)
-        if not match:
-            continue
-        try:
-            key = _decode_yaml_scalar(match.group("key"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            # A malformed quoted scalar should not be treated as a trusted key.
-            key = match.group("key")
-        entries.append((match.group(1), key, match.group("value")))
-    return entries
+UniqueKeyBaseLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
+
+
+def _load_workflow(text: str):
+    """Parse using YAML semantics while preserving GitHub keys such as `on`."""
+    loaded = yaml.load(text, Loader=UniqueKeyBaseLoader)
+    if not isinstance(loaded, dict):
+        raise AssertionError("workflow must parse to a YAML mapping")
+    return loaded
+
+
+def _walk_mapping_keys(value, path=()):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = path + (str(key),)
+            yield child_path, key, child
+            yield from _walk_mapping_keys(child, child_path)
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from _walk_mapping_keys(child, path + (str(index),))
 
 
 def _event_paths(text: str, event: str) -> set[str]:
-    marker = f"  {event}:\n    paths:\n"
-    if marker not in text:
-        raise AssertionError(f"missing {event} paths block")
-
-    paths: set[str] = set()
-    remainder = text.split(marker, 1)[1]
-    for line in remainder.splitlines():
-        if line and not line.startswith(" "):
-            break
-        if re.match(r"^  [^\s].*:\s*$", line):
-            break
-        item = re.match(r"^\s{6}-\s+(.+?)\s*$", line)
-        if item:
-            paths.add(item.group(1))
-    return paths
-
-
-def _top_level_permissions_block(text: str) -> str:
-    match = re.search(r"(?ms)^permissions:\n(?P<body>(?:  [^\n]+\n)+)\njobs:", text)
-    if not match:
-        raise AssertionError("missing top-level permissions block before jobs")
-    return match.group("body")
-
-
-def _permission_key_indents(text: str) -> list[str]:
-    """Return indentation for every YAML key that resolves to `permissions`."""
-    return [indent for indent, key, _ in _mapping_entries(text) if key == "permissions"]
+    workflow = _load_workflow(text)
+    on_block = workflow.get("on")
+    if not isinstance(on_block, dict):
+        raise AssertionError("workflow must contain an `on` mapping")
+    event_block = on_block.get(event)
+    if not isinstance(event_block, dict):
+        raise AssertionError(f"missing {event} event mapping")
+    paths = event_block.get("paths")
+    if not isinstance(paths, list):
+        raise AssertionError(f"missing {event} paths list")
+    return {str(path) for path in paths}
 
 
 def _assert_read_only_permissions(text: str) -> None:
-    assert _top_level_permissions_block(text) == "  contents: read\n"
-    assert _permission_key_indents(text) == [""], (
-        "no job/step-level permissions key or scalar override is allowed"
+    workflow = _load_workflow(text)
+    assert workflow.get("permissions") == {"contents": "read"}, (
+        "top-level permissions must be exactly contents: read"
+    )
+    permission_paths = [
+        path
+        for path, key, _ in _walk_mapping_keys(workflow)
+        if key == "permissions"
+    ]
+    assert permission_paths == [("permissions",)], (
+        "no job/step-level permissions key or override is allowed"
     )
 
 
 def _checkout_refs(text: str) -> list[str]:
+    workflow = _load_workflow(text)
     refs: list[str] = []
-    for _, key, raw_value in _mapping_entries(text):
-        if key != "uses":
+    for _, key, value in _walk_mapping_keys(workflow):
+        if key != "uses" or not isinstance(value, str):
             continue
-        value = raw_value.strip()
-        if not value:
-            continue
-        if value[0] in {'"', "'"}:
-            quote = value[0]
-            if quote == '"':
-                match = re.match(r'^"(?:\\.|[^"\\])*"', value)
-            else:
-                match = re.match(r"^'(?:''|[^'])*'", value)
-            if not match:
-                continue
-            try:
-                value = _decode_yaml_scalar(match.group(0))
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                continue
-        else:
-            value = re.split(r"\s+#", value, maxsplit=1)[0].strip()
         if value.startswith("actions/checkout@"):
             refs.append(value.removeprefix("actions/checkout@"))
     return refs
@@ -141,28 +122,40 @@ class SecurityWorkflowCoverageTests(unittest.TestCase):
     def test_workflow_has_only_read_only_top_level_permissions(self) -> None:
         _assert_read_only_permissions(WORKFLOW.read_text(encoding="utf-8"))
 
-    def test_nested_scalar_permission_spellings_are_rejected(self) -> None:
+    def test_yaml_escaped_permission_overrides_are_rejected(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
         for spelling in (
             "permissions: write-all",
             "'permissions': write-all",
             '"permissions": write-all',
             '"permi\\u0073sions": write-all',
+            '"permi\\x73sions": write-all',
         ):
             mutated = text.replace("  smoke:\n", f"  smoke:\n    {spelling}\n", 1)
             with self.subTest(spelling=spelling):
                 with self.assertRaises(AssertionError):
                     _assert_read_only_permissions(mutated)
 
+    def test_duplicate_permissions_key_is_rejected(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        mutated = text.replace(
+            "permissions:\n  contents: read\n",
+            "permissions:\n  contents: read\npermissions: write-all\n",
+            1,
+        )
+        with self.assertRaises(AssertionError):
+            _assert_read_only_permissions(mutated)
+
     def test_every_checkout_reference_is_immutable(self) -> None:
         _assert_checkout_refs_immutable(WORKFLOW.read_text(encoding="utf-8"))
 
-    def test_quoted_checkout_references_are_checked(self) -> None:
+    def test_yaml_escaped_checkout_references_are_checked(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
         for step in (
             "      - uses: 'actions/checkout@main'\n",
             '      - uses: "actions/checkout@main"\n',
             '      - "uses": "actions/checkout@\\u006dain"\n',
+            '      - "uses": "actions/checkout@\\x6dain"\n',
         ):
             mutated = text.replace("    steps:\n", f"    steps:\n{step}", 1)
             with self.subTest(step=step.strip()):
@@ -173,6 +166,7 @@ class SecurityWorkflowCoverageTests(unittest.TestCase):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("python -m venv .venv", text)
         self.assertIn("--only-binary=:all: -r requirements.txt", text)
+        self.assertIn("PyYAML==6.0.3", text)
         self.assertIn(".venv/bin/python -m pip check", text)
         self.assertNotIn("sudo pip", text)
 
