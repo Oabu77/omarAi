@@ -42,7 +42,7 @@ jobs:
       - name: Verify runner
         run: echo "runner-ready"
 
-      - name: Create isolated test environment
+      - name: Create isolated runtime test environment
         run: python -m venv .venv
 
       - name: Install declared runtime dependencies
@@ -50,13 +50,16 @@ jobs:
           .venv/bin/python -m pip install --disable-pip-version-check --no-input
           --only-binary=:all: -r requirements.txt
 
+      - name: Verify declared runtime dependency consistency
+        run: .venv/bin/python -m pip check
+
+      - name: Create isolated workflow-policy environment
+        run: python -m venv .policy-venv
+
       - name: Install pinned YAML parser for workflow-security tests
         run: >-
-          .venv/bin/python -m pip install --disable-pip-version-check --no-input
+          .policy-venv/bin/python -m pip install --disable-pip-version-check --no-input
           --only-binary=:all: PyYAML==6.0.3
-
-      - name: Verify installed dependency consistency
-        run: .venv/bin/python -m pip check
 
       - name: Run provider error-redaction security regression
         run: .venv/bin/python -m unittest -v test_security_error_redaction.py
@@ -68,4 +71,4 @@ jobs:
         run: .venv/bin/python -m unittest -v test_security_status_integrity.py
 
       - name: Run security workflow coverage regression
-        run: .venv/bin/python -m unittest -v test_security_ci_path_coverage.py
+        run: .policy-venv/bin/python -m unittest -v test_security_ci_path_coverage.py
