@@ -62,7 +62,7 @@ def _walk_mapping_keys(value, path=()):
             yield from _walk_mapping_keys(child, path + (str(index),))
 
 
-def _event_paths(text: str, event: str) -> set[str]:
+def _event_paths(text: str, event: str) -> list[str]:
     workflow = _load_workflow(text)
     on_block = workflow.get("on")
     if not isinstance(on_block, dict):
@@ -73,7 +73,14 @@ def _event_paths(text: str, event: str) -> set[str]:
     paths = event_block.get("paths")
     if not isinstance(paths, list):
         raise AssertionError(f"missing {event} paths list")
-    return {str(path) for path in paths}
+    normalized = [str(path) for path in paths]
+    exclusions = [path for path in normalized if path.startswith("!")]
+    if exclusions:
+        raise AssertionError(
+            f"{event} paths must not contain exclusions that can cancel security triggers: "
+            f"{exclusions}"
+        )
+    return normalized
 
 
 def _assert_read_only_permissions(text: str) -> None:
@@ -112,6 +119,24 @@ def _assert_checkout_refs_immutable(text: str) -> None:
         )
 
 
+def _step_commands(text: str) -> list[str]:
+    workflow = _load_workflow(text)
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        raise AssertionError("workflow must contain jobs")
+    smoke = jobs.get("smoke")
+    if not isinstance(smoke, dict):
+        raise AssertionError("workflow must contain smoke job")
+    steps = smoke.get("steps")
+    if not isinstance(steps, list):
+        raise AssertionError("smoke job must contain steps")
+    commands = []
+    for step in steps:
+        if isinstance(step, dict) and isinstance(step.get("run"), str):
+            commands.append(step["run"])
+    return commands
+
+
 class SecurityWorkflowCoverageTests(unittest.TestCase):
     def test_security_relevant_paths_trigger_each_event(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
@@ -119,6 +144,18 @@ class SecurityWorkflowCoverageTests(unittest.TestCase):
             paths = _event_paths(text, event)
             for path in CRITICAL_RUNTIME_PATHS:
                 self.assertIn(path, paths, f"{path} must trigger {event} security runs")
+
+    def test_path_exclusions_cannot_cancel_security_triggers(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        for exclusion in ("!app.py", "!**"):
+            mutated = text.replace(
+                "      - app.py\n",
+                f"      - app.py\n      - '{exclusion}'\n",
+            )
+            for event in ("push", "pull_request"):
+                with self.subTest(exclusion=exclusion, event=event):
+                    with self.assertRaises(AssertionError):
+                        _event_paths(mutated, event)
 
     def test_workflow_has_only_read_only_top_level_permissions(self) -> None:
         _assert_read_only_permissions(WORKFLOW.read_text(encoding="utf-8"))
@@ -164,13 +201,30 @@ class SecurityWorkflowCoverageTests(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     _assert_checkout_refs_immutable(mutated)
 
-    def test_declared_dependencies_are_exercised_in_isolation(self) -> None:
+    def test_declared_dependencies_are_exercised_without_policy_override(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("python -m venv .venv", text)
-        self.assertIn("--only-binary=:all: -r requirements.txt", text)
-        self.assertIn("PyYAML==6.0.3", text)
-        self.assertIn(".venv/bin/python -m pip check", text)
-        self.assertNotIn("sudo pip", text)
+        commands = _step_commands(text)
+        joined = "\n".join(commands)
+        self.assertIn("python -m venv .venv", joined)
+        self.assertIn(".venv/bin/python -m pip install", joined)
+        self.assertIn("--only-binary=:all: -r requirements.txt", joined)
+        self.assertIn(".venv/bin/python -m pip check", joined)
+        self.assertIn("python -m venv .policy-venv", joined)
+        self.assertIn(".policy-venv/bin/python -m pip install", joined)
+        self.assertIn("PyYAML==6.0.3", joined)
+        self.assertIn(
+            ".policy-venv/bin/python -m unittest -v test_security_ci_path_coverage.py",
+            joined,
+        )
+        runtime_pip_commands = [
+            command for command in commands if command.startswith(".venv/bin/python -m pip install")
+        ]
+        self.assertTrue(runtime_pip_commands)
+        self.assertTrue(
+            all("PyYAML==6.0.3" not in command for command in runtime_pip_commands),
+            "policy-only PyYAML pin must not override the declared runtime environment",
+        )
+        self.assertNotIn("sudo pip", joined)
 
 
 if __name__ == "__main__":
