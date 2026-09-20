@@ -46,6 +46,21 @@ def _top_level_permissions_block(text: str) -> str:
     return match.group("body")
 
 
+def _permission_key_indents(text: str) -> list[str]:
+    """Return indentation for unquoted or quoted YAML `permissions` keys."""
+    return re.findall(
+        r'''(?m)^([ \t]*)(?:permissions|'permissions'|"permissions")\s*:''',
+        text,
+    )
+
+
+def _assert_read_only_permissions(text: str) -> None:
+    assert _top_level_permissions_block(text) == "  contents: read\n"
+    assert _permission_key_indents(text) == [""], (
+        "no job/step-level permissions key or scalar override is allowed"
+    )
+
+
 class SecurityWorkflowCoverageTests(unittest.TestCase):
     def test_security_relevant_paths_trigger_each_event(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
@@ -55,18 +70,19 @@ class SecurityWorkflowCoverageTests(unittest.TestCase):
                 self.assertIn(path, paths, f"{path} must trigger {event} security runs")
 
     def test_workflow_has_only_read_only_top_level_permissions(self) -> None:
-        text = WORKFLOW.read_text(encoding="utf-8")
-        self.assertEqual(_top_level_permissions_block(text), "  contents: read\n")
+        _assert_read_only_permissions(WORKFLOW.read_text(encoding="utf-8"))
 
-        # Match every YAML `permissions:` key regardless of whether the value is
-        # a nested mapping (`permissions:\n  contents: read`) or an inline scalar
-        # (`permissions: write-all`). Only the single top-level key is allowed.
-        permission_key_indents = re.findall(r"(?m)^([ \t]*)permissions\s*:", text)
-        self.assertEqual(
-            permission_key_indents,
-            [""],
-            "no job/step-level permissions key or scalar override is allowed",
-        )
+    def test_nested_scalar_permission_spellings_are_rejected(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        for spelling in (
+            "permissions: write-all",
+            "'permissions': write-all",
+            '"permissions": write-all',
+        ):
+            mutated = text.replace("  smoke:\n", f"  smoke:\n    {spelling}\n", 1)
+            with self.subTest(spelling=spelling):
+                with self.assertRaises(AssertionError):
+                    _assert_read_only_permissions(mutated)
 
     def test_every_checkout_reference_is_immutable(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
