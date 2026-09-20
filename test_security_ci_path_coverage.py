@@ -57,8 +57,16 @@ class SecurityWorkflowCoverageTests(unittest.TestCase):
     def test_workflow_has_only_read_only_top_level_permissions(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertEqual(_top_level_permissions_block(text), "  contents: read\n")
-        permission_headers = re.findall(r"(?m)^([ \t]*)permissions:[ \t]*$", text)
-        self.assertEqual(permission_headers, [""], "no job/step-level permissions blocks are allowed")
+
+        # Match every YAML `permissions:` key regardless of whether the value is
+        # a nested mapping (`permissions:\n  contents: read`) or an inline scalar
+        # (`permissions: write-all`). Only the single top-level key is allowed.
+        permission_key_indents = re.findall(r"(?m)^([ \t]*)permissions\s*:", text)
+        self.assertEqual(
+            permission_key_indents,
+            [""],
+            "no job/step-level permissions key or scalar override is allowed",
+        )
 
     def test_every_checkout_reference_is_immutable(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
