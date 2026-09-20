@@ -46,7 +46,9 @@ jobs:
         run: python -m venv .venv
 
       - name: Install declared runtime dependencies
-        run: .venv/bin/python -m pip install --disable-pip-version-check --no-input --only-binary=:all: -r requirements.txt
+        run: >-
+          .venv/bin/python -m pip install --disable-pip-version-check --no-input
+          --only-binary=:all: -r requirements.txt
 
       - name: Verify installed dependency consistency
         run: .venv/bin/python -m pip check
