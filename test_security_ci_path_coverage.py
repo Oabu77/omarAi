@@ -97,8 +97,9 @@ def _checkout_refs(text: str) -> list[str]:
     for _, key, value in _walk_mapping_keys(workflow):
         if key != "uses" or not isinstance(value, str):
             continue
-        if value.startswith("actions/checkout@"):
-            refs.append(value.removeprefix("actions/checkout@"))
+        action, separator, ref = value.partition("@")
+        if separator and action.lower() == "actions/checkout":
+            refs.append(ref)
     return refs
 
 
@@ -156,6 +157,7 @@ class SecurityWorkflowCoverageTests(unittest.TestCase):
             '      - uses: "actions/checkout@main"\n',
             '      - "uses": "actions/checkout@\\u006dain"\n',
             '      - "uses": "actions/checkout@\\x6dain"\n',
+            "      - uses: Actions/Checkout@main\n",
         ):
             mutated = text.replace("    steps:\n", f"    steps:\n{step}", 1)
             with self.subTest(step=step.strip()):
