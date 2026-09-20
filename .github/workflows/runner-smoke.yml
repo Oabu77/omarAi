@@ -50,6 +50,11 @@ jobs:
           .venv/bin/python -m pip install --disable-pip-version-check --no-input
           --only-binary=:all: -r requirements.txt
 
+      - name: Install pinned YAML parser for workflow-security tests
+        run: >-
+          .venv/bin/python -m pip install --disable-pip-version-check --no-input
+          --only-binary=:all: PyYAML==6.0.3
+
       - name: Verify installed dependency consistency
         run: .venv/bin/python -m pip check
 
