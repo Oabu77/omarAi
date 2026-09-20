@@ -57,12 +57,12 @@ class SecurityWorkflowCoverageTests(unittest.TestCase):
     def test_workflow_has_only_read_only_top_level_permissions(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertEqual(_top_level_permissions_block(text), "  contents: read\n")
-        permission_headers = re.findall(r"(?m)^(\s*)permissions:\s*$", text)
+        permission_headers = re.findall(r"(?m)^([ \t]*)permissions:[ \t]*$", text)
         self.assertEqual(permission_headers, [""], "no job/step-level permissions blocks are allowed")
 
     def test_every_checkout_reference_is_immutable(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
-        checkout_refs = re.findall(r"(?m)^\s*uses:\s*actions/checkout@([^\s#]+)", text)
+        checkout_refs = re.findall(r"(?m)^[ \t]*uses:[ \t]*actions/checkout@([^\s#]+)", text)
         self.assertTrue(checkout_refs, "workflow must contain actions/checkout")
         for ref in checkout_refs:
             self.assertRegex(ref, r"^[0-9a-f]{40}$", f"checkout ref must be immutable: {ref}")
