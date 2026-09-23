@@ -23,7 +23,7 @@ test('Vercel URL always explicitly disables decryption', () => {
   assert.equal(url.searchParams.get('teamId'), 'team_example');
 });
 
-test('sanitizer strips every value-bearing field', () => {
+test('sanitizer strips every value-bearing and free-form field', () => {
   const raw = {
     id: 'env_1',
     key: 'OPENAI_API_KEY',
@@ -34,12 +34,15 @@ test('sanitizer strips every value-bearing field', () => {
     legacyValue: 'legacy-must-never-escape',
     internalContentHint: { encryptedValue: 'must-never-escape' },
     contentHint: { storeId: 'private-store' },
+    comment: 'rotation note contains synthetic-comment-secret',
   };
   const sanitized = sanitizeEnvRecord(raw);
   assert.equal(assertNoSecretFields(sanitized), true);
   const serialized = JSON.stringify(sanitized);
   assert.equal(serialized.includes('must-never-escape'), false);
   assert.equal(serialized.includes('private-store'), false);
+  assert.equal(serialized.includes('synthetic-comment-secret'), false);
+  assert.equal(Object.hasOwn(sanitized, 'comment'), false);
 });
 
 test('metadata client returns only sanitized allowlisted project records', async () => {
@@ -53,6 +56,7 @@ test('metadata client returns only sanitized allowlisted project records', async
         type: 'sensitive',
         target: ['production'],
         value: 'synthetic-secret-value',
+        comment: 'synthetic-comment-secret',
       }],
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   };
@@ -62,6 +66,7 @@ test('metadata client returns only sanitized allowlisted project records', async
   assert.equal(requestedUrl.searchParams.get('decrypt'), 'false');
   assert.equal(records.length, 1);
   assert.equal(JSON.stringify(records).includes('synthetic-secret-value'), false);
+  assert.equal(JSON.stringify(records).includes('synthetic-comment-secret'), false);
   await assert.rejects(
     () => client.listMetadata({ project: 'project-b' }),
     (error) => error.code === 'PROJECT_NOT_ALLOWED',
