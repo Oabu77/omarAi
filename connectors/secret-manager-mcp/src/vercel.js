@@ -7,6 +7,7 @@ const SECRET_FIELD_NAMES = new Set([
   'internalContentHint',
   'contentHint',
   'encryptedValue',
+  'comment',
 ]);
 
 const SAFE_TYPES = new Set(['encrypted', 'secret', 'sensitive', 'system']);
@@ -46,7 +47,6 @@ export function sanitizeEnvRecord(raw) {
     type: safeString(raw.type, 32),
     target: safeArray(raw.target),
     gitBranch: safeString(raw.gitBranch, 256),
-    comment: safeString(raw.comment, 512),
     visibility: safeString(raw.visibility, 32),
     system: Boolean(raw.system),
     createdAt: safeTimestamp(raw.createdAt),
