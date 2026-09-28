@@ -4,19 +4,29 @@ on:
   push:
     paths:
       - app.py
+      - config.py
+      - live_data.py
+      - requirements.txt
+      - system_prompt.md
       - .github/workflows/runner-smoke.yml
+      - .github/workflows/play-publisher-readiness.yml
       - test_security_error_redaction.py
       - test_security_play_publisher_readiness.py
       - test_security_status_integrity.py
-      - .github/workflows/play-publisher-readiness.yml
+      - test_security_ci_path_coverage.py
   pull_request:
     paths:
       - app.py
+      - config.py
+      - live_data.py
+      - requirements.txt
+      - system_prompt.md
       - .github/workflows/runner-smoke.yml
+      - .github/workflows/play-publisher-readiness.yml
       - test_security_error_redaction.py
       - test_security_play_publisher_readiness.py
       - test_security_status_integrity.py
-      - .github/workflows/play-publisher-readiness.yml
+      - test_security_ci_path_coverage.py
 
 permissions:
   contents: read
@@ -24,6 +34,7 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -31,11 +42,33 @@ jobs:
       - name: Verify runner
         run: echo "runner-ready"
 
+      - name: Create isolated runtime test environment
+        run: python -m venv .venv
+
+      - name: Install declared runtime dependencies
+        run: >-
+          .venv/bin/python -m pip install --disable-pip-version-check --no-input
+          --only-binary=:all: -r requirements.txt
+
+      - name: Verify declared runtime dependency consistency
+        run: .venv/bin/python -m pip check
+
+      - name: Create isolated workflow-policy environment
+        run: python -m venv .policy-venv
+
+      - name: Install pinned YAML parser for workflow-security tests
+        run: >-
+          .policy-venv/bin/python -m pip install --disable-pip-version-check --no-input
+          --only-binary=:all: PyYAML==6.0.3
+
       - name: Run provider error-redaction security regression
-        run: python -m unittest -v test_security_error_redaction.py
+        run: .venv/bin/python -m unittest -v test_security_error_redaction.py
 
       - name: Run Play publisher secret-boundary regression
-        run: python -m unittest -v test_security_play_publisher_readiness.py
+        run: .venv/bin/python -m unittest -v test_security_play_publisher_readiness.py
 
       - name: Run operational status-integrity regression
-        run: python -m unittest -v test_security_status_integrity.py
+        run: .venv/bin/python -m unittest -v test_security_status_integrity.py
+
+      - name: Run security workflow coverage regression
+        run: .policy-venv/bin/python -m unittest -v test_security_ci_path_coverage.py
