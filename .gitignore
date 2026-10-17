@@ -6,3 +6,15 @@ __pycache__/
 dist/
 build/
 .env
+.env.*
+!.env.example
+.venv/
+venv/
+.npmrc
+.pypirc
+.netrc
+*.pem
+*.p12
+*.pfx
+*.key
+*service-account*.json
